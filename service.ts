@@ -7,7 +7,7 @@
  */
 
 
-// 10: Import dynamically later
+import { createServer as createViteServer } from "vite";
 import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -43,44 +43,48 @@ const __dirname = path.dirname(__filename);
 const envPath = path.resolve(__dirname, '.env');
 
 
-// 1. Skip manual .env writing on Vercel/Production
-if (process.env.NODE_ENV !== 'production' && !fs.existsSync(envPath)) {
-    console.log('[SYSTEM] Local .env file missing. Initializing fallback...');
-    // Only write in development
-    const DEFAULT_ENV_CONTENT = `API_KEY=AIzaSyDEGDKxCcLP2yA-yq9O6P_9_GqTHghRsMA\nPORT=3000`;
-    try {
-        fs.writeFileSync(envPath, DEFAULT_ENV_CONTENT);
-    } catch(e) {}
+// Hardcoded fallback values (Safety Net)
+const DEFAULT_ENV = {
+    API_KEY: "AIzaSyDEGDKxCcLP2yA-yq9O6P_9_GqTHghRsMA",
+    SUPABASE_URL: "https://scnbjrkwrgshihgnixvu.supabase.co",
+    SUPABASE_KEY: "", 
+    PORT: "3000"
+};
+
+
+// 1. Ensure .env exists with correct structure
+if (!fs.existsSync(envPath)) {
+    console.log('[SYSTEM] .env file missing. Initializing secure configuration...');
+    const content = Object.entries(DEFAULT_ENV).map(([k, v]) => `${k}=${v}`).join('\n');
+    fs.writeFileSync(envPath, content);
 }
 
 
-// 2. Manual Parse (Still needed for local, but safe for cloud)
-if (fs.existsSync(envPath)) {
-    try {
-        const rawEnv = fs.readFileSync(envPath, 'utf-8');
-        rawEnv.split(/\r?\n/).forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed && !trimmed.startsWith('#')) {
-                const splitIdx = trimmed.indexOf('=');
-                if (splitIdx > 0) {
-                    const key = trimmed.substring(0, splitIdx).trim();
-                    const val = trimmed.substring(splitIdx + 1).trim().replace(/^["'](.*)["']$/, '$1');
-                    if (!process.env[key]) process.env[key] = val;
-                }
+// 2. Manual Parse
+try {
+    const rawEnv = fs.readFileSync(envPath, 'utf-8');
+    rawEnv.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+            const splitIdx = trimmed.indexOf('=');
+            if (splitIdx > 0) {
+                const key = trimmed.substring(0, splitIdx).trim();
+                const val = trimmed.substring(splitIdx + 1).trim().replace(/^["'](.*)["']$/, '$1');
+                process.env[key] = val;
             }
-        });
-    } catch (e) { }
-}
+        }
+    });
+} catch (e) { console.error('[SYSTEM] Config Read Error:', e.message); }
 
 
 // 3. Fallback Injection
-if (!process.env.API_KEY) process.env.API_KEY = "AIzaSyDEGDKxCcLP2yA-yq9O6P_9_GqTHghRsMA";
-if (!process.env.PORT) process.env.PORT = "3000";
+if (!process.env.API_KEY) process.env.API_KEY = DEFAULT_ENV.API_KEY;
+if (!process.env.PORT) process.env.PORT = DEFAULT_ENV.PORT;
 
 
 const CONFIG = {
     API_KEY: process.env.API_KEY,
-    SUPABASE_URL: process.env.SUPABASE_URL || "https://scnbjrkwrgshihgnixvu.supabase.co",
+    SUPABASE_URL: process.env.SUPABASE_URL || DEFAULT_ENV.SUPABASE_URL,
     SUPABASE_KEY: process.env.SUPABASE_KEY,
     PORT: parseInt(process.env.PORT || '3000')
 };
@@ -151,11 +155,10 @@ let activeAiContext = {
 };
 
 function saveContextLocally() {
-    if (process.env.VERCEL) return; // Skip local write on Vercel
     try {
         fs.writeFileSync(CONTEXT_PATH, JSON.stringify(activeAiContext, null, 2));
     } catch (e) {
-        console.error('[SYSTEM] Failed to save AI context locally:', (e as any).message);
+        console.error('[SYSTEM] Failed to save AI context locally:', e.message);
     }
 }
 
@@ -816,11 +819,6 @@ async function fetchAdminProfile() {
 
 
 function startWhatsApp() {
-  if (process.env.VERCEL) {
-      console.log('[WHATSAPP] WhatsApp client is disabled in Vercel environment.');
-      WA_STATUS = 'CLOUD_MODE';
-      return;
-  }
   if (client) return;
   WA_STATUS = 'LAUNCHING';
   io.emit('stage-update', WA_STATUS);
@@ -1157,6 +1155,7 @@ io.on('connection', (socket) => {
         if(supabase) await supabase.from('mnf_inventory').upsert({ id: item.id, item_name: item.item_name, stock: item.stock, sell_price: item.sell_price });
     });
 
+
     socket.on('cmd-sync-campaigns', (campaigns) => { aiCampaigns = campaigns; });
 });
 
@@ -1166,13 +1165,8 @@ io.on('connection', (socket) => {
 async function startServer(port) {
 
     console.log('[SYSTEM] Starting server initialization...');
-    
-    // Load persistent memory early
-    await loadNeuralMemory();
-
     // Vite middleware for development
-    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-        const { createServer: createViteServer } = await import("vite");
+    if (process.env.NODE_ENV !== "production") {
         const vite = await createViteServer({
             server: { middlewareMode: true },
             appType: "spa",
@@ -1182,26 +1176,27 @@ async function startServer(port) {
     } else {
         const distPath = path.resolve(__dirname, "dist");
         app.use(express.static(distPath));
-        app.get(/^(?!\/api).+/, (req, res) => {
+        app.get('*', (req, res) => {
             res.sendFile(path.join(distPath, "index.html"));
         });
     }
 
-    // Don't call listen on Vercel
-    if (process.env.VERCEL) {
-        console.log('[SYSTEM] Running in Vercel environment');
-        return;
-    }
-
     server.listen(port, "0.0.0.0", async () => {
+
         console.log(`🚀 MNF Neural Engine running on port ${port}`);
         
+        // Load persistent memory
+        await loadNeuralMemory();
+
         try {
+            // buka WhatsApp Web sahaja (Commented out for cloud compatibility)
+            // await open("https://web.whatsapp.com");
             console.log("📱 WhatsApp Web bridge active");
         } catch (err) {
             console.error("[SYSTEM] Browser open error:", err.message);
         }
 
+        // auto start WhatsApp jika ada session
         if (fs.existsSync("./.wwebjs_auth")) {
             setTimeout(startWhatsApp, 2000);
         }
@@ -1211,11 +1206,5 @@ async function startServer(port) {
     });
 
 }
-
-// Export for Vercel
-export default app;
-
-if (!process.env.VERCEL) {
-    }
 
 startServer(CONFIG.PORT);

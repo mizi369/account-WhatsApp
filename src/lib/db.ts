@@ -4,19 +4,7 @@ import {
   Customer, Promotion, Invoice, Quotation,
   AiQuestion, AiAnswer, AiMapping, AiTraining, AiLock, AiLearningLog, ServicePrice, BlockedSlot
 } from '../types';
-import { db as firestore, handleFirestoreError, OperationType, waitForAuth, auth } from '../service/firebase';
-import { 
-  collection, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  query, 
-  where, 
-  setDoc,
-  onSnapshot 
-} from 'firebase/firestore';
+import { supabase } from '../service/supabase';
 
 export const TABLES = {
   BOOKINGS: 'mnf_bookings',
@@ -44,42 +32,32 @@ export const TABLES = {
   TRANSACTIONS: 'mnf_transactions'
 };
 
-const listeners: { [key: string]: () => void } = {};
+// Map local keys to Supabase table names if different (mostly same based on SQL)
+// We rely on TABLE constants matching Supabase table names directly.
 
 export const db = {
-  // Initialize: Fetch all data from Firestore and cache in LocalStorage for sync reads
+  // Initialize: Fetch all data from Supabase and cache in LocalStorage for sync reads
   init: async () => {
-    console.log('[DB] Waiting for Auth before Sync...');
-    await waitForAuth();
-    
-    if (!auth.currentUser) {
-        console.log('[DB] Not authenticated. Skipping Firestore Sync.');
-        return false;
+    if (!(supabase as any).isConfigured) {
+        console.log('[DB] Supabase not configured, using local storage mode.');
+        return;
     }
-
-    console.log('[DB] Starting Firestore Sync for:', auth.currentUser.email);
+    console.log('[DB] Starting Full Sync from Supabase...');
     try {
         const tableKeys = Object.values(TABLES);
         
-        await Promise.all(tableKeys.map(async (tableName) => {
-            try {
-                // Initial sync
-                const querySnapshot = await getDocs(collection(firestore, tableName));
-                const data = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                localStorage.setItem(tableName, JSON.stringify(data));
-
-                // Set up real-time listener if not already active
-                if (listeners[tableName]) listeners[tableName](); 
-                listeners[tableName] = onSnapshot(collection(firestore, tableName), (snapshot) => {
-                    const updatedData = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-                    localStorage.setItem(tableName, JSON.stringify(updatedData));
-                }, (error) => {
-                    console.warn(`[DB] Real-time listener error for ${tableName}:`, error);
-                });
-
-            } catch (error) {
-                console.warn(`[DB] Initial sync failed for ${tableName}:`, error);
-                if (!localStorage.getItem(tableName)) localStorage.setItem(tableName, '[]');
+        await Promise.all(tableKeys.map(async (table) => {
+            const { data, error } = await supabase.from(table).select('*');
+            if (!error && data) {
+                localStorage.setItem(table, JSON.stringify(data));
+            } else if (error) {
+                // Suppress excessive logging for unconfigured supabase
+                const msg = (error.message || '').toLowerCase();
+                if (!msg.includes('supabase not configured')) {
+                    console.warn(`[DB] Sync error for ${table}:`, error.message);
+                }
+                // Fallback: If table empty/error, keep existing localStorage or init empty
+                if (!localStorage.getItem(table)) localStorage.setItem(table, '[]');
             }
         }));
         
@@ -95,39 +73,89 @@ export const db = {
   getAll: <T>(table: string): T[] => {
     try {
       const data = localStorage.getItem(table);
-      return data ? JSON.parse(data) : [];
+      let items = data ? JSON.parse(data) : [];
+      
+      // Self-healing: Ensure all items have an ID
+      let changed = false;
+      items = items.map((i: any) => {
+        if (i.id === undefined || i.id === null) {
+            i.id = Date.now() + Math.floor(Math.random() * 1000); // Generate unique temp ID
+            changed = true;
+        }
+        return i;
+      });
+
+      if (changed) {
+          localStorage.setItem(table, JSON.stringify(items));
+      }
+
+      return items;
     } catch (e) {
-      console.error(`[DB] Error reading table ${table}`, e);
+      console.error(`Error reading table ${table}`, e);
       return [];
     }
   },
 
   getById: <T extends { id: string | number }>(table: string, id: string | number): T | undefined => {
     const items = db.getAll<T>(table);
-    return items.find(i => String(i.id) === String(id));
+    return items.find(i => i.id === id || i.id?.toString() === id.toString());
   },
 
-  // Async Write (Firestore + Cache Update)
-  insert: async <T>(table: string, item: T): Promise<{ error: any; id?: string }> => {
+  // Async Write (Supabase + Cache Update)
+  insert: async <T>(table: string, item: T) => {
+    // 1. Ensure Item has ID
     const newItem = { ...item } as any;
-    const tempId = newItem.id;
-    delete newItem.id; // Let Firestore generate ID or handle accordingly
+    if (!newItem.id) {
+        newItem.id = Date.now() + Math.floor(Math.random() * 1000000);
+    }
+
+    // 2. Optimistic Update (Cache)
+    const items = db.getAll<T>(table);
+    items.push(newItem);
+    localStorage.setItem(table, JSON.stringify(items));
+
+    // 3. Database Write
+    if (!(supabase as any).isConfigured) {
+        return { error: null };
+    }
 
     try {
-        let docRef;
-        if (tempId && isNaN(Number(tempId))) {
-             // If it's a specific string ID (like settings key), use setDoc
-             await setDoc(doc(firestore, table, String(tempId)), newItem);
-             docRef = { id: String(tempId) };
-        } else {
-             docRef = await addDoc(collection(firestore, table), newItem);
-        }
+        // We attempt to insert. If Supabase returns data with a DIFFERENT ID (e.g. serial),
+        // we should update our local cache to match.
+        const { data, error } = await supabase.from(table).insert(item).select();
         
-        console.log(`[DB] Inserted into ${table} with ID: ${docRef.id}`);
-        return { error: null, id: docRef.id };
-    } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, table);
-        return { error };
+        if (error) throw error;
+        
+        // Update local cache with real DB data if available
+        if (data && data[0]) {
+            const realItem = data[0];
+            const currentItems = db.getAll<T>(table);
+            // Find the item we just added (by temp ID or matching fields)
+            // Since we can't easily match by ID if it changed, we might rely on the fact 
+            // that we just pushed it to the end. But race conditions exist.
+            // Safer strategy: If we sent an ID, it matches. If we didn't, we have a problem mapping back.
+            // For now, let's assume if we generated an ID, we sent it, or we just keep the local one until next sync.
+            
+            // If the DB generated a new ID, we have a duplicate in concept (one with temp ID, one in DB with real ID).
+            // Next sync will bring the Real ID. The Temp ID one will remain until cleared.
+            // To fix this: We should try to swap it if possible.
+            
+            const index = currentItems.findIndex(i => (i as any).id === newItem.id);
+            if (index !== -1) {
+                currentItems[index] = realItem;
+                localStorage.setItem(table, JSON.stringify(currentItems));
+            }
+        }
+
+        console.log(`[DB] Inserted into ${table}`);
+        return { error: null };
+    } catch (e: any) {
+        const msg = (e?.message || e?.error?.message || JSON.stringify(e) || '').toLowerCase();
+        if (msg.includes('supabase not configured')) {
+             return { error: null }; // Treat as success for offline mode
+        }
+        console.error(`[DB] Insert Failed ${table}:`, e?.message || e);
+        return { error: e };
     }
   },
 
@@ -137,17 +165,19 @@ export const db = {
     
     try {
       const customers = db.getAll<Customer>(TABLES.CUSTOMERS);
-      const existingCustomer = customers.find(c => c.phone === data.phone);
+      const existing = customers.find(c => c.phone === data.phone);
       
-      if (existingCustomer) {
-        if (existingCustomer.name !== data.name || (data.address && existingCustomer.address !== data.address)) {
-          await db.update<any>(TABLES.CUSTOMERS, existingCustomer.id, {
+      if (existing) {
+        // Update if name or address changed
+        if (existing.name !== data.name || (data.address && existing.address !== data.address)) {
+          await db.update<any>(TABLES.CUSTOMERS, existing.id, {
             name: data.name,
-            address: data.address || existingCustomer.address,
+            address: data.address || existing.address,
             lastService: new Date().toISOString().split('T')[0]
           });
         }
       } else {
+        // Create new customer
         await db.insert<any>(TABLES.CUSTOMERS, {
           name: data.name,
           phone: data.phone,
@@ -161,31 +191,76 @@ export const db = {
     }
   },
 
-  update: async <T extends { id: string | number }>(table: string, id: string | number, updates: Partial<T>): Promise<{ error: any }> => {
-    const cleanUpdates = { ...updates } as any;
-    delete cleanUpdates.id;
+  update: async <T extends { id: string | number }>(table: string, id: string | number, updates: Partial<T>) => {
+    // 1. Optimistic Update
+    const items = db.getAll<T>(table);
+    const index = items.findIndex(i => i.id === id || i.id?.toString() === id.toString());
+    if (index !== -1) {
+      items[index] = { ...items[index], ...updates };
+      localStorage.setItem(table, JSON.stringify(items));
+    }
+
+    // 2. Database Write
+    if (!(supabase as any).isConfigured) {
+        return { error: null };
+    }
 
     try {
-        const docRef = doc(firestore, table, String(id));
-        await updateDoc(docRef, cleanUpdates);
+        const { error } = await supabase.from(table).update(updates).eq('id', id);
+        if (error) throw error;
         console.log(`[DB] Updated ${table} : ${id}`);
         return { error: null };
-    } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `${table}/${id}`);
-        return { error };
+    } catch (e: any) {
+        const msg = (e?.message || e?.error?.message || JSON.stringify(e) || '').toLowerCase();
+        if (msg.includes('supabase not configured')) {
+             return { error: null };
+        }
+        console.error(`[DB] Update Failed ${table}:`, e?.message || e);
+        return { error: e };
     }
   },
 
-  delete: async <T extends { id: string | number }>(table: string, id: string | number): Promise<{ error: any }> => {
-    try {
-        const docRef = doc(firestore, table, String(id));
-        await deleteDoc(docRef);
-        console.log(`[DB] Deleted from ${table} : ${id}`);
-        return { error: null };
-    } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `${table}/${id}`);
-        return { error };
+  delete: async <T extends { id: string | number }>(table: string, id: string | number) => {
+    console.log(`[DB] Deleting from ${table} ID: ${id}`);
+    
+    // 1. Optimistic Update
+    const items = db.getAll<T>(table);
+    const filtered = items.filter(i => String(i.id) !== String(id));
+    const deletedLocally = items.length !== filtered.length;
+
+    if (deletedLocally) {
+        localStorage.setItem(table, JSON.stringify(filtered));
+        console.log(`[DB] Removed ${items.length - filtered.length} item(s) locally`);
+    } else {
+        console.warn(`[DB] Warning: Item with ID ${id} not found in ${table} (Local)`);
     }
+
+    // 2. Database Write
+    if (!(supabase as any).isConfigured) {
+        return { error: null };
+    }
+
+    let remoteError = null;
+    try {
+        const { error } = await supabase.from(table).delete().eq('id', id);
+        if (error) throw error;
+        console.log(`[DB] Supabase deleted from ${table} : ${id}`);
+    } catch (e: any) {
+        const msg = (e?.message || e?.error?.message || JSON.stringify(e) || '').toLowerCase();
+        if (!msg.includes('supabase not configured')) {
+            console.error(`[DB] Delete Failed ${table}:`, e?.message || e);
+            remoteError = e;
+        }
+    }
+
+    // PRIORITY: If deleted locally, return success so UI updates.
+    // If not found locally, but no remote error, return success (maybe stale UI).
+    // Only return error if NOT deleted locally AND remote failed.
+    if (deletedLocally) {
+        return { error: null };
+    }
+
+    return { error: remoteError ? remoteError : null };
   },
 
   getStats: () => {
