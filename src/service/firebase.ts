@@ -3,8 +3,9 @@ import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+// Initialize Firebase using the provided configuration file
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -55,17 +56,22 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Validation connection helper as required by instructions
+// Validation connection helper
 export async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log('[FIREBASE] Connection verified');
   } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+    // If it's a permission error, the connection is actually working (just not logged in)
+    if (error instanceof Error && (error.message.includes('permission-denied') || error.message.includes('insufficient permissions'))) {
+       console.log('[FIREBASE] Connection verified (Auth required)');
+       return;
+    }
+    
+    if(error instanceof Error && error.message.toLowerCase().includes('offline')) {
+      console.error("[FIREBASE] Offline: Please check your internet connection or check if the Firestore project ID is correct.");
     } else {
-        // Log other errors as well for debugging
-        console.error("[FIREBASE] Connection check error:", error);
+        console.error("[FIREBASE] Connection check error:", error instanceof Error ? error.message : error);
     }
   }
 }
@@ -75,8 +81,7 @@ export const signInWithGoogle = async () => {
         const result = await signInWithPopup(auth, googleProvider);
         return result.user;
     } catch (error) {
-        console.error('Error signing in with Google:', error);
+        console.error("Google Sign-In Error:", error);
         throw error;
     }
 };
-

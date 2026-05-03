@@ -114,18 +114,55 @@ const PriceListManager: React.FC = () => {
 
   const loadSampleData = () => {
     const samples = [
-      { name: 'Normal Service (Wall Unit 1.0HP - 1.5HP)', price: 80, price_end: 100, description: 'Cuci filter, blower, drain tray, check gas.', category: 'Aircond Service' },
-      { name: 'Chemical Overhaul (1.0HP - 1.5HP)', price: 150, price_end: 180, description: 'Cuci kimia indoor & outdoor, check gas.', category: 'Aircond Service' },
-      { name: 'Wiring Aircond Point (Dari DB ke unit)', price: 250, price_end: 350, description: 'Pendawaian baru dari DB ke unit aircond.', category: 'Wiring' },
-      { name: 'Wiring DB (Distribution Board)', price: 450, price_end: 850, description: 'Pemasangan atau naik taraf papan agihan elektrik.', category: 'Wiring' },
-      { name: 'Pemasangan Lampu', price: 25, price_end: 45, description: 'Upah pasang lampu (exclude wiring point).', category: 'Electrical' },
-      { name: 'Pemasangan Kipas (Siling/Dinding)', price: 60, price_end: 85, description: 'Upah pasang kipas siling/dinding (exclude wiring point).', category: 'Electrical' },
-      { name: 'Pemasangan Water Heater', price: 120, price_end: 180, description: 'Upah pasang pemanas air (exclude wiring point).', category: 'Electrical' },
-      { name: 'Pemasangan Aircond (Unit baru)', price: 280, price_end: 350, description: 'Pemasangan unit baru (back to back 10ft copper).', category: 'Installation' },
-      { name: 'Pemindahan Aircond (Relocation)', price: 350, price_end: 450, description: 'Buka unit lama dan pasang di lokasi baru.', category: 'Installation' },
-      { name: 'Checking / Troubleshooting', price: 50, price_end: 80, description: 'Caj pemeriksaan kerosakan sistem.', category: 'Checking' },
-      { name: 'Caj Tempat Tinggi & Berisiko', price: 50, price_end: 150, description: 'Caj tambahan untuk kerja di tempat tinggi/sukar.', category: 'Others' },
-      { name: 'Gas Topup (R32 & R410A)', price: 30, price_end: 80, description: 'Topup gas mengikut bacaan PSI.', category: 'Gas' },
+      // AIRCOND SERVICE (WALLMOUNTED) - NORMAL
+      { name: 'Normal Service (Wall) 1.0HP', price: 100, price_end: 0, category: 'Aircond Service', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 1.5HP', price: 100, price_end: 0, category: 'Aircond Service', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 2.0HP', price: 120, price_end: 0, category: 'Aircond Service', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 2.5HP', price: 120, price_end: 0, category: 'Aircond Service', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 3.0HP', price: 150, price_end: 0, category: 'Aircond Service', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      
+      // CHEMICAL OVERHAUL (WALLMOUNTED)
+      { name: 'Chemical Overhaul (Wall) 1.0HP', price: 180, price_end: 0, category: 'Aircond Service', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 1.5HP', price: 195, price_end: 0, category: 'Aircond Service', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 2.0HP', price: 215, price_end: 0, category: 'Aircond Service', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 2.5HP', price: 235, price_end: 0, category: 'Aircond Service', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 3.0HP', price: 255, price_end: 0, category: 'Aircond Service', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+
+      // CEILING CASSETTE - NORMAL
+      { name: 'Normal Service (Ceiling) 2.0HP', price: 150, price_end: 0, category: 'Aircond (Ceiling)', description: 'Servis normal unit ceiling cassette.' },
+      { name: 'Normal Service (Ceiling) 3.0HP', price: 200, price_end: 0, category: 'Aircond (Ceiling)', description: 'Servis normal unit ceiling cassette.' },
+      { name: 'Normal Service (Ceiling) 5.0HP', price: 300, price_end: 0, category: 'Aircond (Ceiling)', description: 'Servis normal unit ceiling cassette.' },
+
+      // CEILING CASSETTE - CHEMICAL CANVAS
+      { name: 'Chemical Canvas (Ceiling) 2.0HP', price: 450, price_end: 0, category: 'Aircond (Ceiling)', description: 'Servis kimia menggunakan canvas (Ceiling Cassette).' },
+      { name: 'Chemical Canvas (Ceiling) 3.0HP', price: 550, price_end: 0, category: 'Aircond (Ceiling)', description: 'Servis kimia menggunakan canvas (Ceiling Cassette).' },
+      { name: 'Chemical Canvas (Ceiling) 5.0HP', price: 800, price_end: 0, category: 'Aircond (Ceiling)', description: 'Servis kimia menggunakan canvas (Ceiling Cassette).' },
+
+      // INSTALLATION
+      { name: 'Basic Install (1.0HP)', price: 350, price_end: 0, category: 'Installation', description: 'Basic installation back to back (6 kaki copper pipe, cable, drain pipe).' },
+      { name: 'Basic Install (1.5HP)', price: 400, price_end: 0, category: 'Installation', description: 'Basic installation back to back.' },
+      { name: 'Basic Install (2.0HP)', price: 500, price_end: 0, category: 'Installation', description: 'Basic installation back to back.' },
+      { name: 'Premium Install (1.0HP)', price: 700, price_end: 0, category: 'Installation', description: 'Premium install (Copper Mega Grade, PVC Casing, Power Point Looping, Vacuum Process).' },
+      { name: 'Premium Install (3.0HP)', price: 1150, price_end: 0, category: 'Installation', description: 'Premium install (Mega Grade).' },
+
+      // GAS
+      { name: 'Gas R22 Topup', price: 13, price_end: 234, category: 'Gas', description: 'Pengisian gas R22 mengikut bacaan PSI.' },
+      { name: 'Gas R410 Topup', price: 15, price_end: 270, category: 'Gas', description: 'Pengisian gas R410 mengikut bacaan PSI.' },
+      { name: 'Gas R32 Topup', price: 17, price_end: 306, category: 'Gas', description: 'Pengisian gas R32 mengikut bacaan PSI.' },
+
+      // DISMANTLE
+      { name: 'Buka Aircond (1.0HP)', price: 175, price_end: 0, category: 'Dismantle', description: 'Membuka unit indoor & outdoor dengan selamat.' },
+      { name: 'Buka Aircond (2.0HP)', price: 250, price_end: 0, category: 'Dismantle', description: 'Membuka unit indoor & outdoor dengan selamat.' },
+      
+      // ELECTRICAL
+      { name: 'Pasang Lampu (Basic)', price: 45, price_end: 0, category: 'Electrical', description: 'Upah pasang lampu (asas).' },
+      { name: 'Pasang Kipas (Basic)', price: 180, price_end: 0, category: 'Electrical', description: 'Upah pasang kipas (asas).' },
+      { name: 'Water Heater Install (Basic)', price: 180, price_end: 0, category: 'Electrical', description: 'Upah pasang pemanas air.' },
+      
+      // OTHERS
+      { name: 'Checking / Troubleshooting', price: 80, price_end: 400, category: 'Checking', description: 'Pemeriksaan menyeluruh punca kerosakan.' },
+      { name: 'Hacking wall for copper pipe', price: 45, price_end: 0, category: 'Others', description: 'Kerja hacking dinding untuk tanam paip.' },
+      { name: 'Transport / Trip Charge', price: 80, price_end: 300, category: 'Others', description: 'Caj pengangkutan dan perjalanan.' },
     ];
 
     samples.forEach((s, i) => {
@@ -135,7 +172,7 @@ const PriceListManager: React.FC = () => {
     const updatedData = db.getAll<ServicePrice>(TABLES.SERVICES);
     setServices(updatedData);
     syncToAi(updatedData, globalAiNote);
-    setMessage("Data contoh berjaya dimuatkan! AI kini mengenali harga-harga ini.");
+    setMessage("Data katalog dari dokumen berjaya dimuatkan!");
   };
 
   return (
@@ -159,7 +196,7 @@ const PriceListManager: React.FC = () => {
         </div>
         <div className="flex gap-2">
             <button onClick={() => setConfirmDelete('sample')} className="bg-white/5 text-slate-300 border border-white/5 px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-white/10 transition-all font-black shadow-sm uppercase text-[10px] tracking-widest active:scale-95">
-                <DownloadCloud size={14} /> Muat Contoh
+                <DownloadCloud size={14} /> Muat Contoh (Katalog)
             </button>
             <button onClick={() => setIsModalOpen(true)} className="btn-primary px-5 py-2.5 text-[10px] flex items-center gap-2">
                 <Plus size={14} /> Tambah Servis
@@ -305,8 +342,8 @@ const PriceListManager: React.FC = () => {
 
       <ConfirmModal 
         isOpen={!!confirmDelete}
-        title={confirmDelete === 'sample' ? 'Muat Data Contoh' : 'Padam Servis'}
-        message={confirmDelete === 'sample' ? 'Adakah anda pasti mahu memuatkan data contoh? Ini akan menambah 9 servis standard ke dalam senarai.' : 'Adakah anda pasti mahu memadam servis ini? Tindakan ini tidak boleh dikembalikan.'}
+        title={confirmDelete === 'sample' ? 'Muat Katalog Lengkap' : 'Padam Servis'}
+        message={confirmDelete === 'sample' ? 'Adakah anda pasti mahu memuatkan katalog harga dari dokumen? Ini akan menambah semua servis standard MNF Engineering ke dalam senarai.' : 'Adakah anda pasti mahu memadam servis ini? Tindakan ini tidak boleh dikembalikan.'}
         onConfirm={() => confirmDelete === 'sample' ? (loadSampleData(), setConfirmDelete(null)) : handleDelete(confirmDelete!)}
         onCancel={() => setConfirmDelete(null)}
       />

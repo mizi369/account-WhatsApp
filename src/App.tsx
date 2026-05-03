@@ -249,9 +249,30 @@ const App: React.FC = () => {
     // STARTUP SYNC
     const initSystem = async () => {
         setIsLoading(true);
-        await db.init(); // Fetch data from Supabase
-        await testConnection(); 
+        console.log('[SYSTEM] Starting Initialization...');
+        
+        // Parallel init with timeout to prevent hanging on slow connections
+        try {
+            const dbInitPromise = db.init();
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Sync Timeout')), 8000)
+            );
+            
+            await Promise.race([dbInitPromise, timeoutPromise]);
+            console.log('[SYSTEM] DB Init Complete');
+        } catch (e) {
+            console.warn('[SYSTEM] DB Init slowed down or failed, proceeding with local cache:', e);
+        }
+        
+        try {
+            // Test Firebase connection but don't block UI if it takes too long
+            testConnection(); 
+        } catch (e) {
+            console.warn('[SYSTEM] Firebase check skipped/failed');
+        }
+        
         setIsLoading(false);
+        console.log('[SYSTEM] Initialization Finished');
         checkStatus();
         await syncLiveSlotsToAi();
 
@@ -630,15 +651,17 @@ const App: React.FC = () => {
                    </div>
                    {waStatus !== 'READY' && waStatus !== 'ONLINE' && waStatus !== 'SCAN_QR' && (
                        <Link to="/whatsapp" className="text-[9px] font-bold text-cyan-400 hover:underline uppercase animate-pulse flex items-center gap-1 hidden sm:flex">
-                           <Activity size={10} /> Reconnect
+                           <Activity size={10} /> {window.location.hostname.includes('netlify.app') ? 'Backend Required' : 'Reconnect'}
                        </Link>
                    )}
                </div>
                <div className="flex items-center gap-3">
                    {!isSocketConnected && (
-                       <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-lg animate-pulse">
+                       <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
                            <WifiOff size={12} className="text-red-500"/>
-                           <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">System Offline</span>
+                           <span className="text-[9px] font-black text-red-500 uppercase tracking-widest hidden xs:inline">
+                               {window.location.hostname.includes('netlify.app') ? 'No Backend Found' : 'System Offline'}
+                           </span>
                        </div>
                    )}
                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">

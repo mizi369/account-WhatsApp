@@ -57,18 +57,55 @@ export default function Catalog({ showToast }: { showToast: (msg: string, type?:
 
   const loadSampleData = async () => {
     const samples = [
-      { name: 'Normal Service (Wall Unit 1.0HP - 1.5HP)', price: 80, price_end: 100, description: 'Cuci filter, blower, drain tray, check gas.', category: 'Aircond Service', unit: 'Unit' },
-      { name: 'Chemical Overhaul (1.0HP - 1.5HP)', price: 150, price_end: 180, description: 'Cuci kimia indoor & outdoor, check gas.', category: 'Aircond Service', unit: 'Unit' },
-      { name: 'Wiring Aircond Point (Dari DB ke unit)', price: 250, price_end: 350, description: 'Pendawaian baru dari DB ke unit aircond.', category: 'Wiring', unit: 'Point' },
-      { name: 'Wiring DB (Distribution Board)', price: 450, price_end: 850, description: 'Pemasangan atau naik taraf papan agihan elektrik.', category: 'Wiring', unit: 'Set' },
-      { name: 'Pemasangan Lampu', price: 25, price_end: 45, description: 'Upah pasang lampu (exclude wiring point).', category: 'Electrical', unit: 'Point' },
-      { name: 'Pemasangan Kipas (Siling/Dinding)', price: 60, price_end: 85, description: 'Upah pasang kipas siling/dinding (exclude wiring point).', category: 'Electrical', unit: 'Unit' },
-      { name: 'Pemasangan Water Heater', price: 120, price_end: 180, description: 'Upah pasang pemanas air (exclude wiring point).', category: 'Electrical', unit: 'Unit' },
-      { name: 'Pemasangan Aircond (Unit baru)', price: 280, price_end: 350, description: 'Pemasangan unit baru (back to back 10ft copper).', category: 'Installation', unit: 'Unit' },
-      { name: 'Pemindahan Aircond (Relocation)', price: 350, price_end: 450, description: 'Buka unit lama dan pasang di lokasi baru.', category: 'Installation', unit: 'Unit' },
-      { name: 'Checking / Troubleshooting', price: 50, price_end: 80, description: 'Caj pemeriksaan kerosakan sistem.', category: 'Checking', unit: 'Trip' },
-      { name: 'Caj Tempat Tinggi & Berisiko', price: 50, price_end: 150, description: 'Caj tambahan untuk kerja di tempat tinggi/sukar.', category: 'Others', unit: 'Trip' },
-      { name: 'Gas Topup (R32 & R410A)', price: 30, price_end: 80, description: 'Topup gas mengikut bacaan PSI.', category: 'Gas', unit: 'PSI' },
+      // AIRCOND SERVICE (WALLMOUNTED) - NORMAL
+      { name: 'Normal Service (Wall) 1.0HP', price: 100, price_end: 0, category: 'Aircond Service', unit: '1hp', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 1.5HP', price: 100, price_end: 0, category: 'Aircond Service', unit: '1.5hp', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 2.0HP', price: 120, price_end: 0, category: 'Aircond Service', unit: '2hp', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 2.5HP', price: 120, price_end: 0, category: 'Aircond Service', unit: '2.5hp', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      { name: 'Normal Service (Wall) 3.0HP', price: 150, price_end: 0, category: 'Aircond Service', unit: '3hp', description: 'Mencuci penapis, cover, blower, drain tray, check gas & prestasi.' },
+      
+      // CHEMICAL OVERHAUL (WALLMOUNTED)
+      { name: 'Chemical Overhaul (Wall) 1.0HP', price: 180, price_end: 0, category: 'Aircond Service', unit: '1hp', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 1.5HP', price: 195, price_end: 0, category: 'Aircond Service', unit: '1.5hp', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 2.0HP', price: 215, price_end: 0, category: 'Aircond Service', unit: '2hp', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 2.5HP', price: 235, price_end: 0, category: 'Aircond Service', unit: '2.5hp', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+      { name: 'Chemical Overhaul (Wall) 3.0HP', price: 255, price_end: 0, category: 'Aircond Service', unit: '3hp', description: 'Buka casing, keluarkan coil & blower, cuci kimia, flush drain pipe, testing & check gas.' },
+
+      // CEILING CASSETTE - NORMAL
+      { name: 'Normal Service (Ceiling) 2.0HP', price: 150, price_end: 0, category: 'Aircond (Ceiling)', unit: '2hp', description: 'Servis normal unit ceiling cassette.' },
+      { name: 'Normal Service (Ceiling) 3.0HP', price: 200, price_end: 0, category: 'Aircond (Ceiling)', unit: '3hp', description: 'Servis normal unit ceiling cassette.' },
+      { name: 'Normal Service (Ceiling) 5.0HP', price: 300, price_end: 0, category: 'Aircond (Ceiling)', unit: '5hp', description: 'Servis normal unit ceiling cassette.' },
+
+      // CEILING CASSETTE - CHEMICAL CANVAS
+      { name: 'Chemical Canvas (Ceiling) 2.0HP', price: 450, price_end: 0, category: 'Aircond (Ceiling)', unit: '2hp', description: 'Servis kimia menggunakan canvas (Ceiling Cassette).' },
+      { name: 'Chemical Canvas (Ceiling) 3.0HP', price: 550, price_end: 0, category: 'Aircond (Ceiling)', unit: '3hp', description: 'Servis kimia menggunakan canvas (Ceiling Cassette).' },
+      { name: 'Chemical Canvas (Ceiling) 5.0HP', price: 800, price_end: 0, category: 'Aircond (Ceiling)', unit: '5hp', description: 'Servis kimia menggunakan canvas (Ceiling Cassette).' },
+
+      // INSTALLATION
+      { name: 'Basic Install (1.0HP)', price: 350, price_end: 0, category: 'Installation', unit: '1hp', description: 'Basic installation back to back (6 kaki copper pipe, cable, drain pipe).' },
+      { name: 'Basic Install (1.5HP)', price: 400, price_end: 0, category: 'Installation', unit: '1.5hp', description: 'Basic installation back to back.' },
+      { name: 'Basic Install (2.0HP)', price: 500, price_end: 0, category: 'Installation', unit: '2hp', description: 'Basic installation back to back.' },
+      { name: 'Premium Install (1.0HP)', price: 700, price_end: 0, category: 'Installation', unit: '1hp', description: 'Premium install (Copper Mega Grade, PVC Casing, Power Point Looping, Vacuum Process).' },
+      { name: 'Premium Install (3.0HP)', price: 1150, price_end: 0, category: 'Installation', unit: '3hp', description: 'Premium install (Mega Grade).' },
+
+      // GAS
+      { name: 'Gas R22 Topup', price: 13, price_end: 234, category: 'Gas', unit: '10psi', description: 'Pengisian gas R22 mengikut bacaan PSI.' },
+      { name: 'Gas R410 Topup', price: 15, price_end: 270, category: 'Gas', unit: '10psi', description: 'Pengisian gas R410 mengikut bacaan PSI.' },
+      { name: 'Gas R32 Topup', price: 17, price_end: 306, category: 'Gas', unit: '10psi', description: 'Pengisian gas R32 mengikut bacaan PSI.' },
+
+      // DISMANTLE
+      { name: 'Buka Aircond (1.0HP)', price: 175, price_end: 0, category: 'Dismantle', unit: '1hp', description: 'Membuka unit indoor & outdoor dengan selamat.' },
+      { name: 'Buka Aircond (2.0HP)', price: 250, price_end: 0, category: 'Dismantle', unit: '2hp', description: 'Membuka unit indoor & outdoor dengan selamat.' },
+      
+      // ELECTRICAL
+      { name: 'Pasang Lampu (Basic)', price: 45, price_end: 0, category: 'Electrical', unit: 'Unit', description: 'Upah pasang lampu (asas).' },
+      { name: 'Pasang Kipas (Basic)', price: 180, price_end: 0, category: 'Electrical', unit: 'Unit', description: 'Upah pasang kipas (asas).' },
+      { name: 'Water Heater Install (Basic)', price: 180, price_end: 0, category: 'Electrical', unit: 'Unit', description: 'Upah pasang pemanas air.' },
+      
+      // OTHERS
+      { name: 'Checking / Troubleshooting', price: 80, price_end: 400, category: 'Checking', unit: 'Trip', description: 'Pemeriksaan menyeluruh punca kerosakan.' },
+      { name: 'Hacking wall for copper pipe', price: 45, price_end: 0, category: 'Others', unit: 'ft', description: 'Kerja hacking dinding untuk tanam paip.' },
+      { name: 'Transport / Trip Charge', price: 80, price_end: 300, category: 'Others', unit: 'Trip', description: 'Caj pengangkutan dan perjalanan.' },
     ];
 
     try {

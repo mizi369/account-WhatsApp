@@ -47,17 +47,26 @@ export const db = {
         const tableKeys = Object.values(TABLES);
         
         await Promise.all(tableKeys.map(async (table) => {
-            const { data, error } = await supabase.from(table).select('*');
-            if (!error && data) {
-                localStorage.setItem(table, JSON.stringify(data));
-            } else if (error) {
-                // Suppress excessive logging for unconfigured supabase
-                const msg = (error.message || '').toLowerCase();
-                if (!msg.includes('supabase not configured')) {
-                    console.warn(`[DB] Sync error for ${table}:`, error.message);
+            try {
+                // Individual 3-second timeout per table fetch
+                const fetchPromise = supabase.from(table).select('*');
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Fetch Timeout')), 3000)
+                );
+                
+                const response = await Promise.race([fetchPromise, timeoutPromise]) as any;
+                const { data, error } = response;
+
+                if (!error && data) {
+                    localStorage.setItem(table, JSON.stringify(data));
+                } else if (error) {
+                    const msg = (error.message || '').toLowerCase();
+                    if (!msg.includes('supabase not configured')) {
+                        console.warn(`[DB] Sync error for ${table}:`, error.message);
+                    }
                 }
-                // Fallback: If table empty/error, keep existing localStorage or init empty
-                if (!localStorage.getItem(table)) localStorage.setItem(table, '[]');
+            } catch (err) {
+                console.warn(`[DB] Table ${table} sync failed or timed out`);
             }
         }));
         
