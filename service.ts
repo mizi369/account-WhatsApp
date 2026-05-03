@@ -7,7 +7,7 @@
  */
 
 
-import { createServer as createViteServer } from "vite";
+// 10: Import dynamically later
 import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -151,10 +151,11 @@ let activeAiContext = {
 };
 
 function saveContextLocally() {
+    if (process.env.VERCEL) return; // Skip local write on Vercel
     try {
         fs.writeFileSync(CONTEXT_PATH, JSON.stringify(activeAiContext, null, 2));
     } catch (e) {
-        console.error('[SYSTEM] Failed to save AI context locally:', e.message);
+        console.error('[SYSTEM] Failed to save AI context locally:', (e as any).message);
     }
 }
 
@@ -1171,6 +1172,7 @@ async function startServer(port) {
 
     // Vite middleware for development
     if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+        const { createServer: createViteServer } = await import("vite");
         const vite = await createViteServer({
             server: { middlewareMode: true },
             appType: "spa",

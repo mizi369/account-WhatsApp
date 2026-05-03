@@ -108,7 +108,7 @@ export const db = {
   },
 
   // Async Write (Firestore + Cache Update)
-  insert: async <T>(table: string, item: T) => {
+  insert: async <T>(table: string, item: T): Promise<{ error: any; id?: string }> => {
     const newItem = { ...item } as any;
     const tempId = newItem.id;
     delete newItem.id; // Let Firestore generate ID or handle accordingly
@@ -161,7 +161,7 @@ export const db = {
     }
   },
 
-  update: async <T extends { id: string | number }>(table: string, id: string | number, updates: Partial<T>) => {
+  update: async <T extends { id: string | number }>(table: string, id: string | number, updates: Partial<T>): Promise<{ error: any }> => {
     const cleanUpdates = { ...updates } as any;
     delete cleanUpdates.id;
 
@@ -176,7 +176,7 @@ export const db = {
     }
   },
 
-  delete: async <T extends { id: string | number }>(table: string, id: string | number) => {
+  delete: async <T extends { id: string | number }>(table: string, id: string | number): Promise<{ error: any }> => {
     try {
         const docRef = doc(firestore, table, String(id));
         await deleteDoc(docRef);
