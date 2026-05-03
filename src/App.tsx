@@ -58,6 +58,7 @@ import Payroll from './components/Payroll';
 import Sales from './components/Sales';
 import { db, TABLES } from './lib/db';
 import { socket } from './service/socket';
+import { IS_BACKEND_AVAILABLE } from './constants';
 import { testConnection } from './service/firebase';
 import { Booking } from './types';
 
@@ -595,7 +596,7 @@ const App: React.FC = () => {
                    ) : (
                        <span>{adminName.charAt(0)}</span>
                    )}
-                   <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-700 ${isSocketConnected ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                   <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-700 ${isSocketConnected ? 'bg-emerald-500' : (IS_BACKEND_AVAILABLE ? 'bg-red-500' : 'bg-cyan-500')}`}></div>
                 </div>
                 
                 {isSidebarOpen && (
@@ -607,8 +608,8 @@ const App: React.FC = () => {
                         )}
                       </div>
                      <p className="text-[9px] text-slate-400 font-bold flex items-center gap-1 uppercase tracking-wide">
-                        {isSocketConnected ? <Wifi size={8} className="text-emerald-500"/> : <WifiOff size={8} className="text-red-500"/>} 
-                        {isSocketConnected ? 'ONLINE' : 'OFFLINE'}
+                        {isSocketConnected ? <Wifi size={8} className="text-emerald-500"/> : <WifiOff size={8} className={IS_BACKEND_AVAILABLE ? "text-red-500" : "text-cyan-500"}/>}
+                        {isSocketConnected ? 'ONLINE' : (IS_BACKEND_AVAILABLE ? 'OFFLINE' : 'CLOUD MODE')}
                      </p>
                   </div>
                 )}
@@ -651,16 +652,24 @@ const App: React.FC = () => {
                    </div>
                    {waStatus !== 'READY' && waStatus !== 'ONLINE' && waStatus !== 'SCAN_QR' && (
                        <Link to="/whatsapp" className="text-[9px] font-bold text-cyan-400 hover:underline uppercase animate-pulse flex items-center gap-1 hidden sm:flex">
-                           <Activity size={10} /> {window.location.hostname.includes('netlify.app') ? 'Backend Required' : 'Reconnect'}
+                           <Activity size={10} /> {IS_BACKEND_AVAILABLE ? 'Reconnect' : 'Cloud Mode'}
                        </Link>
                    )}
                </div>
                <div className="flex items-center gap-3">
-                   {!isSocketConnected && (
+                   {!isSocketConnected && IS_BACKEND_AVAILABLE && (
                        <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
                            <WifiOff size={12} className="text-red-500"/>
                            <span className="text-[9px] font-black text-red-500 uppercase tracking-widest hidden xs:inline">
-                               {window.location.hostname.includes('netlify.app') ? 'No Backend Found' : 'System Offline'}
+                               System Offline
+                           </span>
+                       </div>
+                   )}
+                   {!isSocketConnected && !IS_BACKEND_AVAILABLE && (
+                       <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+                           <Activity size={12} className="text-cyan-400"/>
+                           <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest hidden xs:inline">
+                               Cloud Mode
                            </span>
                        </div>
                    )}
@@ -672,7 +681,7 @@ const App: React.FC = () => {
 
            <div className={`flex-1 overflow-auto custom-scrollbar p-2 sm:p-4 md:p-5 lg:p-6 ${isSidebarOpen ? 'pl-2 sm:pl-4 md:pl-6' : ''} relative`}>
               <AnimatePresence>
-                {!isSocketConnected && (
+                {!isSocketConnected && IS_BACKEND_AVAILABLE && (
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}

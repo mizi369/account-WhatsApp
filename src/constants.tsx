@@ -1,10 +1,26 @@
 
 import React from 'react';
 
-// Since we are using Vite middleware, the backend is on the same origin as the frontend
-export const BACKEND_URL = window.location.origin;
+// Resolve backend target. Priority:
+// 1. Explicit VITE_BACKEND_URL env var (when the user runs a real Express + Socket.IO backend somewhere)
+// 2. Same origin as the frontend (works for full-stack deploys / `netlify dev` / `npm run dev`)
+// On a static-only host (e.g. plain Netlify deploy) there is no Socket.IO server at the origin,
+// so we mark the backend as unavailable and let the UI run in cloud-only mode without alarming
+// "System Offline" indicators.
+const env: any = (import.meta as any)?.env || {};
+const explicitBackend: string = (env.VITE_BACKEND_URL || '').toString().trim();
 
-console.log(`[SYSTEM] Backend Target: ${BACKEND_URL}`);
+const isBrowser = typeof window !== 'undefined';
+const hostname = isBrowser ? window.location.hostname : '';
+const isStaticHost = /\.netlify\.app$/i.test(hostname) || /\.vercel\.app$/i.test(hostname);
+
+export const BACKEND_URL = explicitBackend || (isBrowser ? window.location.origin : '');
+
+// True only when we believe a backend (Socket.IO + REST) is reachable at BACKEND_URL.
+// When false, socket connection is skipped and the offline overlay is suppressed.
+export const IS_BACKEND_AVAILABLE: boolean = Boolean(explicitBackend) || (isBrowser && !isStaticHost);
+
+console.log(`[SYSTEM] Backend Target: ${BACKEND_URL || '(none)'} | Available: ${IS_BACKEND_AVAILABLE}`);
 
 export const COLORS = {
   primary: '#D32F2F', // Red
