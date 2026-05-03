@@ -1,13 +1,52 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup, type Auth } from 'firebase/auth';
+import { getFirestore, doc, getDocFromServer, type Firestore } from 'firebase/firestore';
 
-// Initialize Firebase using the provided configuration file
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined,
+};
+
+const firestoreDatabaseId =
+  (import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string | undefined) || '(default)';
+
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId,
+);
+
+let app: FirebaseApp | null = null;
+let dbInstance: Firestore | null = null;
+let authInstance: Auth | null = null;
+let googleProviderInstance: GoogleAuthProvider | null = null;
+
+if (isFirebaseConfigured) {
+  try {
+    app = initializeApp(firebaseConfig as Record<string, string>);
+    dbInstance = getFirestore(app, firestoreDatabaseId);
+    authInstance = getAuth(app);
+    googleProviderInstance = new GoogleAuthProvider();
+  } catch (err) {
+    console.error('[FIREBASE] Failed to initialize:', err);
+    app = null;
+    dbInstance = null;
+    authInstance = null;
+    googleProviderInstance = null;
+  }
+} else {
+  console.warn(
+    '[FIREBASE] Skipping initialization: missing VITE_FIREBASE_* environment variables. ' +
+      'Set VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID, and VITE_FIREBASE_APP_ID in Netlify to enable Firebase features.',
+  );
+}
+
+export const db = dbInstance as Firestore;
+export const auth = authInstance as Auth;
+export const googleProvider = googleProviderInstance as GoogleAuthProvider;
 
 export enum OperationType {
   CREATE = 'create',
@@ -36,15 +75,16 @@ interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const currentUser = authInstance?.currentUser ?? null;
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+      userId: currentUser?.uid,
+      email: currentUser?.email,
+      emailVerified: currentUser?.emailVerified,
+      isAnonymous: currentUser?.isAnonymous,
+      tenantId: currentUser?.tenantId,
+      providerInfo: currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []
@@ -58,8 +98,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Validation connection helper
 export async function testConnection() {
+  if (!dbInstance) {
+    console.warn('[FIREBASE] testConnection skipped: Firebase is not configured');
+    return;
+  }
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDocFromServer(doc(dbInstance, 'test', 'connection'));
     console.log('[FIREBASE] Connection verified');
   } catch (error) {
     // If it's a permission error, the connection is actually working (just not logged in)
@@ -67,7 +111,7 @@ export async function testConnection() {
        console.log('[FIREBASE] Connection verified (Auth required)');
        return;
     }
-    
+
     if(error instanceof Error && error.message.toLowerCase().includes('offline')) {
       console.error("[FIREBASE] Offline: Please check your internet connection or check if the Firestore project ID is correct.");
     } else {
@@ -77,8 +121,13 @@ export async function testConnection() {
 }
 
 export const signInWithGoogle = async () => {
+    if (!authInstance || !googleProviderInstance) {
+        const msg = 'Firebase is not configured. Set VITE_FIREBASE_* environment variables in Netlify to enable Google Sign-In.';
+        console.error('[FIREBASE]', msg);
+        throw new Error(msg);
+    }
     try {
-        const result = await signInWithPopup(auth, googleProvider);
+        const result = await signInWithPopup(authInstance, googleProviderInstance);
         return result.user;
     } catch (error) {
         console.error("Google Sign-In Error:", error);
