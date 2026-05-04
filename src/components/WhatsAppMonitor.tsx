@@ -446,10 +446,7 @@ const WhatsAppMonitor: React.FC = () => {
       return { type, content };
   };
 
-  const isNetlify = window.location.hostname.includes('netlify.app');
-
   const getStatusText = (s: string) => {
-      if (isNetlify && !isConnected) return "Sistem Backend (Node.js) tidak dikesan pada Netlify. Sila gunakan pelayan yang menyokong Node.js (seperti AI Studio Preview atau Render) untuk menjana QR Code.";
       if (s === 'SCAN_QR') return "Sila imbas QR untuk sambung WhatsApp Super Admin. Sistem menunggu pengesahan.";
       if (s === 'READY') return "WhatsApp Super Admin berjaya dihubungkan. Sistem kini aktif dan sedia digunakan.";
       if (s === 'LAUNCHING' || s === 'RECONNECTING' || s === 'AUTHENTICATED') return "Sistem sedang memulakan sambungan Super Admin...";
@@ -907,11 +904,6 @@ const WhatsAppMonitor: React.FC = () => {
                           ) : isScan && qrCode ? (
                               <div className="bg-white p-3 rounded-2xl shadow-2xl border-4 border-cyan-500/30">
                                   <img src={qrCode} className="w-56 h-56 md:w-64 md:h-64 object-contain bg-white rounded-lg" />
-                              </div>
-                          ) : isNetlify && !isConnected ? (
-                              <div className="w-40 h-40 md:w-48 md:h-48 bg-slate-800 rounded-[2rem] flex flex-col items-center justify-center border-4 border-amber-500/50 p-4 text-center">
-                                  <AlertTriangle size={40} className="text-amber-500 mb-2" />
-                                  <p className="text-[8px] font-black uppercase text-amber-200">Backend Missing on Netlify</p>
                               </div>
                           ) : (
                               <div className="w-40 h-40 md:w-48 md:h-48 bg-slate-800 rounded-[2rem] flex items-center justify-center border-4 border-slate-700">
