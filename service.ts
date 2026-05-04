@@ -118,6 +118,7 @@ app.use(express.json());
 
 // ================= MEMORY & CONTEXT (LIVE STATE) =================
 let WA_STATUS = 'OFFLINE';
+let LAST_QR = '';
 let client = null;
 let isAutoReplyActive = true; 
 let aiCampaigns = []; 
@@ -220,6 +221,7 @@ async function loadNeuralMemory() {
 
 // ================= API ROUTES =================
 app.get('/api/status', (req, res) => res.json({ status: WA_STATUS }));
+app.get('/api/qr', (req, res) => res.json({ qr: LAST_QR }));
 app.get('/api/context', (req, res) => res.json(activeAiContext));
 app.get('/api/admin', async (req, res) => {
     if (currentAdminInfo && currentAdminInfo.image) return res.json(currentAdminInfo);
@@ -836,6 +838,7 @@ function startWhatsApp() {
 
   client.on('qr', (qr) => {
     qrcode.toDataURL(qr, { scale: 10 }).then(url => {
+        LAST_QR = url;
         io.emit('qr-code', url);
         io.emit('stage-update', 'SCAN_QR');
     }).catch(err => {
@@ -953,6 +956,7 @@ function startWhatsApp() {
   client.initialize().catch(err => {
       console.error('[WHATSAPP] Init Fatal Error:', err.message);
       WA_STATUS = 'OFFLINE';
+      LAST_QR = '';
       io.emit('stage-update', WA_STATUS);
       client = null;
       setTimeout(startWhatsApp, 10000);
@@ -965,6 +969,9 @@ function startWhatsApp() {
 
 io.on('connection', (socket) => {
     socket.emit('stage-update', WA_STATUS);
+    if (WA_STATUS === 'SCAN_QR' && LAST_QR) {
+        socket.emit('qr-code', LAST_QR);
+    }
     socket.emit('ai-status', isAutoReplyActive);
     socket.emit('dashboard-stats', dashboardStats);
     socket.emit('recent-messages', recentMessages);

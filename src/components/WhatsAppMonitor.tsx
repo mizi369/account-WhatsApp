@@ -89,7 +89,13 @@ const WhatsAppMonitor: React.FC = () => {
         if(data.status) {
             setStatus(data.status);
             // Auto switch to connection tab if scan needed
-            if(data.status === 'SCAN_QR') setActiveTab('connection');
+            if(data.status === 'SCAN_QR') {
+                setActiveTab('connection');
+                // Fetch QR code if it didn't come through socket yet
+                safeFetch('/api/qr', (qrData) => {
+                    if (qrData.qr) setQrCode(qrData.qr);
+                });
+            }
         } else {
             // Default to OFFLINE if no status returned
             setStatus('OFFLINE');
@@ -122,8 +128,10 @@ const WhatsAppMonitor: React.FC = () => {
                     if (parts.length > 1) textContent = parts.slice(1).join(': "').slice(0, -1);
                 }
                 
-                // Enrich with customer data
-                const customer = allCustomers.find(c => c.phone && (c.phone.includes(log.phone) || log.phone.includes(c.phone)));
+                // Enrich with customer data - Normalize phone numbers for better matching
+                const normalize = (p: string) => p.replace(/\D/g, '').replace(/^60/, '').replace(/^0/, '');
+                const cleanLogPhone = normalize(log.phone);
+                const customer = allCustomers.find(c => c.phone && normalize(c.phone) === cleanLogPhone);
                 
                 contactsMap.set(log.phone, {
                     id: `user-${log.phone}`,
@@ -183,7 +191,9 @@ const WhatsAppMonitor: React.FC = () => {
     socket.on('new-msg', (msg: any) => {
         if (msg.senderRole === 'user') {
             const currentCustomers = db.getAll<any>(TABLES.CUSTOMERS);
-            const customer = currentCustomers.find(c => c.phone && (c.phone.includes(msg.phone) || msg.phone.includes(c.phone)));
+            const normalize = (p: string) => p.replace(/\D/g, '').replace(/^60/, '').replace(/^0/, '');
+            const cleanMsgPhone = normalize(msg.phone);
+            const customer = currentCustomers.find(c => c.phone && normalize(c.phone) === cleanMsgPhone);
             
             setRealContacts(prev => {
                 const newMap = new Map(prev);

@@ -2,7 +2,13 @@
 import React from 'react';
 
 // Since we are using Vite middleware, the backend is on the same origin as the frontend
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+export const BACKEND_URL = (() => {
+  let url = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+  // Clean up if the user pasted a full URL with fragment or path
+  if (url.includes('#')) url = url.split('#')[0];
+  if (url.endsWith('/')) url = url.slice(0, -1);
+  return url;
+})();
 
 console.log(`[SYSTEM] Backend Target: ${BACKEND_URL}`);
 

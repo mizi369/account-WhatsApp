@@ -25,12 +25,19 @@ const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 // Initialize Firestore with long-polling for better reliability in proxied/iFrame environments
 export const db = app ? initializeFirestore(app, {
     experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true,
 }, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || '(default)') : { 
     collection: () => ({}), 
     doc: () => ({}) 
 } as any;
 
-export const auth = app ? getAuth(app) : { currentUser: null, onAuthStateChanged: () => () => {} } as any;
+export const auth = app ? getAuth(app) : { 
+    currentUser: null, 
+    onAuthStateChanged: () => () => {},
+    // Mock internal methods to prevent "Cannot read properties of undefined" errors in firebase SDK
+    _getInternal: () => ({ create: () => ({}) }),
+    create: () => ({})
+} as any;
 
 // Safely initialize storage only if a bucket is provided
 let storageInstance: any = { ref: () => ({}), uploadBytes: () => ({}), getDownloadURL: () => ({}) };
@@ -116,11 +123,23 @@ export async function testConnection(): Promise<boolean> {
 }
 
 export const signInWithGoogle = async () => {
+    if (!isFirebaseConfigured) {
+        throw new Error("Firebase tidak dikonfigurasi. Sila sediakan Firebase terlebih dahulu.");
+    }
+
     try {
+        console.log("[FIREBASE] Memulakan Google Sign-In...", { auth: !!auth, googleProvider: !!googleProvider });
         const result = await signInWithPopup(auth, googleProvider);
         return result.user;
-    } catch (error) {
-        console.error("Google Sign-In Error:", error);
+    } catch (error: any) {
+        console.error("Google Sign-In Error Detail:", error);
+        // Special check for common errors
+        if (error.code === 'auth/popup-closed-by-user') {
+            throw new Error("Popup ditutup oleh pengguna.");
+        }
+        if (error.code === 'auth/cancelled-by-user') {
+             throw new Error("Log masuk dibatalkan.");
+        }
         throw error;
     }
 };
