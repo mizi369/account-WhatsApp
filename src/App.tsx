@@ -483,17 +483,18 @@ const App: React.FC = () => {
 
     const onConnect = () => {
         setIsSocketConnected(true);
+        console.log('[SYSTEM] Neural Core Connected');
         socket.emit('cmd-status-check');
-        // ... (existing socket context sync) ...
         const instructions = localStorage.getItem('mnf_ai_system_instructions');
-        const socialFb = localStorage.getItem('mnf_social_fb');
-        const socialTt = localStorage.getItem('mnf_social_tt');
-        // ...
+        if (instructions) {
+            socket.emit('cmd-update-instructions', { instructions });
+        }
         void syncLiveSlotsToAi();
     };
 
     const onDisconnect = () => {
         setIsSocketConnected(false);
+        console.warn('[SYSTEM] Neural Core Disconnected');
     };
 
     socket.on('connect', onConnect);
@@ -517,6 +518,9 @@ const App: React.FC = () => {
         socket.off('ai-booking-confirmed', handleAutoBooking);
     };
   }, []);
+
+  const isNetlify = window.location.hostname.includes('netlify.app');
+  const isCloudEnabled = isFirebaseConfigured;
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
@@ -607,7 +611,7 @@ const App: React.FC = () => {
                    ) : (
                        <span>{adminName.charAt(0)}</span>
                    )}
-                   <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-700 ${isSocketConnected ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                   <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-700 ${isSocketConnected ? 'bg-emerald-500' : (isCloudEnabled ? 'bg-cyan-500' : 'bg-red-500')}`}></div>
                 </div>
                 
                 {isSidebarOpen && (
@@ -619,8 +623,11 @@ const App: React.FC = () => {
                         )}
                       </div>
                      <p className="text-[9px] text-slate-400 font-bold flex items-center gap-1 uppercase tracking-wide">
-                        {isSocketConnected ? <Wifi size={8} className="text-emerald-500"/> : <WifiOff size={8} className="text-red-500"/>} 
-                        {isSocketConnected ? 'ONLINE' : 'OFFLINE'}
+                        {isSocketConnected ? (
+                            <><Wifi size={8} className="text-emerald-500"/> ONLINE</>
+                        ) : (
+                            isCloudEnabled ? <><Activity size={8} className="text-cyan-500"/> CLOUD</> : <><WifiOff size={8} className="text-red-500"/> OFFLINE</>
+                        )}
                      </p>
                   </div>
                 )}
@@ -663,7 +670,7 @@ const App: React.FC = () => {
                    </div>
                    {waStatus !== 'READY' && waStatus !== 'ONLINE' && waStatus !== 'SCAN_QR' && (
                        <Link to="/whatsapp" className="text-[9px] font-bold text-cyan-400 hover:underline uppercase animate-pulse flex items-center gap-1 hidden sm:flex">
-                           <Activity size={10} /> {window.location.hostname.includes('netlify.app') ? 'Backend Required' : 'Reconnect'}
+                           <Activity size={10} /> {isNetlify ? 'Cloud Mode' : 'Reconnect'}
                        </Link>
                    )}
                </div>
@@ -672,7 +679,7 @@ const App: React.FC = () => {
                        <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
                            <WifiOff size={12} className="text-red-500"/>
                            <span className="text-[9px] font-black text-red-500 uppercase tracking-widest hidden xs:inline">
-                               {window.location.hostname.includes('netlify.app') ? 'No Backend Found' : 'System Offline'}
+                               {isNetlify ? 'Cloud Sync' : 'System Offline'}
                            </span>
                        </div>
                    )}
@@ -684,22 +691,23 @@ const App: React.FC = () => {
 
            <div className={`flex-1 overflow-auto custom-scrollbar p-2 sm:p-4 md:p-5 lg:p-6 ${isSidebarOpen ? 'pl-2 sm:pl-4 md:pl-6' : ''} relative`}>
               <AnimatePresence>
-                {!isSocketConnected && (
+                {(!isSocketConnected && !isNetlify) && (
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 z-50 bg-slate-950/40 backdrop-blur-[2px] pointer-events-none flex items-start justify-center pt-20"
+                    className="absolute inset-x-0 top-14 z-50 pointer-events-none flex items-start justify-center"
                   >
                      <motion.div 
                        initial={{ opacity: 0, y: -20 }}
                        animate={{ opacity: 1, y: 0 }}
-                       className="bg-red-500 text-white px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 border border-red-400/50 pointer-events-auto"
+                       className="bg-red-500/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 border border-red-400/50 pointer-events-auto"
                      >
-                       <WifiOff size={16} className="animate-pulse" />
-                       <div>
-                         <p className="text-[10px] font-black uppercase tracking-widest leading-none">Sistem Offline</p>
-                       </div>
+                       <WifiOff size={14} className="animate-pulse" />
+                       <p className="text-[9px] font-black uppercase tracking-widest leading-none">Sistem Offline</p>
+                       <button onClick={() => window.location.reload()} className="ml-2 hover:bg-white/20 p-1 rounded-full transition-colors">
+                          <Activity size={10} />
+                       </button>
                      </motion.div>
                   </motion.div>
                 )}
