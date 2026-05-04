@@ -4,13 +4,17 @@ import { createClient } from '@supabase/supabase-js';
 // Safe environment variable retrieval for browser environments
 const getEnv = (key: string, fallback: string = '') => {
   try {
-    // These keys are physically replaced by Vite at build time via 'define' configuration in vite.config.ts
-    // This prevents "process is not defined" ReferenceErrors in the browser.
-    if (key === 'SUPABASE_URL') return process.env.SUPABASE_URL || 'https://scnbjrkwrgshihgnixvu.supabase.co';
-    if (key === 'SUPABASE_KEY') return process.env.SUPABASE_KEY || fallback;
+    // 1. Try Vite's import.meta.env
+    const viteKey = `VITE_${key}`;
+    if (import.meta.env[viteKey]) return import.meta.env[viteKey];
+    if (import.meta.env[key]) return import.meta.env[key];
+
+    // 2. Try the defined process.env (Vite will replace these at build time)
+    if (key === 'SUPABASE_URL') return (process.env as any).SUPABASE_URL || 'https://scnbjrkwrgshihgnixvu.supabase.co';
+    if (key === 'SUPABASE_KEY') return (process.env as any).SUPABASE_KEY || fallback;
+    
     return fallback;
   } catch (e) {
-    // Fallback if anything fails
     if (key === 'SUPABASE_URL') return 'https://scnbjrkwrgshihgnixvu.supabase.co';
     return fallback;
   }

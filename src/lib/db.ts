@@ -82,17 +82,26 @@ export const db = {
   getAll: <T>(table: string): T[] => {
     try {
       const data = localStorage.getItem(table);
-      let items = data ? JSON.parse(data) : [];
+      let items = [];
+      try {
+        items = data ? JSON.parse(data) : [];
+        if (!Array.isArray(items)) items = [];
+      } catch (e) {
+        console.warn(`[DB] Invalid data in table ${table}, resetting.`);
+        items = [];
+        localStorage.setItem(table, '[]');
+      }
       
       // Self-healing: Ensure all items have an ID
       let changed = false;
       items = items.map((i: any) => {
+        if (!i || typeof i !== 'object') return null;
         if (i.id === undefined || i.id === null) {
-            i.id = Date.now() + Math.floor(Math.random() * 1000); // Generate unique temp ID
+            i.id = Date.now() + Math.floor(Math.random() * 1000); 
             changed = true;
         }
         return i;
-      });
+      }).filter((i: any) => i !== null);
 
       if (changed) {
           localStorage.setItem(table, JSON.stringify(items));
@@ -346,8 +355,8 @@ export const db = {
     // Inventory Stats
     const inventory = db.getAll<any>(TABLES.INVENTORY);
     const inventoryCount = inventory.length;
-    const lowStockCount = inventory.filter(i => i.stock <= 5).length;
-    const totalInventoryValue = inventory.reduce((sum, i) => sum + (i.buyPrice * i.stock), 0);
+    const lowStockCount = inventory.filter(i => (i.stock || 0) <= 5).length;
+    const totalInventoryValue = inventory.reduce((sum, i) => sum + ((i.buyPrice || 0) * (i.stock || 0)), 0);
 
     // Monthly Sales (from paid invoices and sales this month)
     const monthlyInvoiceSales = invoices

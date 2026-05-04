@@ -246,6 +246,17 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    // SAFETY TIMEOUT: Force stop loading after 12 seconds no matter what
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+      console.warn('[SYSTEM] Safety timer triggered: Forcing end of loading state.');
+      // If still blank after 12s, show a debug message on screen
+      const root = document.getElementById('root');
+      if (root && (root.innerHTML === '' || root.innerHTML.includes('Connecting Neural Core'))) {
+          console.error('[SYSTEM] App is still blank/loading after 12s. Forcing UI refresh.');
+      }
+    }, 12000);
+
     // STARTUP SYNC
     const initSystem = async () => {
         setIsLoading(true);
@@ -272,6 +283,7 @@ const App: React.FC = () => {
         }
         
         setIsLoading(false);
+        clearTimeout(safetyTimer);
         console.log('[SYSTEM] Initialization Finished');
         checkStatus();
         await syncLiveSlotsToAi();
