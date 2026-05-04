@@ -26,5 +26,6 @@ export default defineConfig({
     'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || ''),
     'process.env.SUPABASE_KEY': JSON.stringify(process.env.SUPABASE_KEY || ''),
     'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || ''),
+    'process.env.VITE_BACKEND_URL': JSON.stringify(process.env.VITE_BACKEND_URL || ''),
   },
 });

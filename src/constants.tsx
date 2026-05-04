@@ -1,10 +1,15 @@
 
 import React from 'react';
 
-// Since we are using Vite middleware, the backend is on the same origin as the frontend
-export const BACKEND_URL = window.location.origin;
+// In Vite middleware/dev, the backend is on the same origin as the frontend.
+// In production deployments where the frontend is hosted statically (e.g. Netlify),
+// the WhatsApp/Socket.IO backend (service.ts) must run separately on a Node host
+// (Render, Railway, Fly.io, AI Studio, etc.) — point the frontend at it by setting
+// VITE_BACKEND_URL at build time.
+const ENV_BACKEND_URL = (process.env.VITE_BACKEND_URL || '').trim();
+export const BACKEND_URL = ENV_BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 
-console.log(`[SYSTEM] Backend Target: ${BACKEND_URL}`);
+console.log(`[SYSTEM] Backend Target: ${BACKEND_URL}${ENV_BACKEND_URL ? ' (from VITE_BACKEND_URL)' : ' (same-origin)'}`);
 
 export const COLORS = {
   primary: '#D32F2F', // Red
