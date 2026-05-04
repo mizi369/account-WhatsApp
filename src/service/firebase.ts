@@ -31,7 +31,17 @@ export const db = app ? initializeFirestore(app, {
 } as any;
 
 export const auth = app ? getAuth(app) : { currentUser: null, onAuthStateChanged: () => () => {} } as any;
-export const storage = app ? getStorage(app) : { ref: () => ({}), uploadBytes: () => ({}), getDownloadURL: () => ({}) } as any;
+
+// Safely initialize storage only if a bucket is provided
+let storageInstance: any = { ref: () => ({}), uploadBytes: () => ({}), getDownloadURL: () => ({}) };
+if (app && firebaseConfig.storageBucket) {
+    try {
+        storageInstance = getStorage(app);
+    } catch (e) {
+        console.error("[FIREBASE] Storage initialization failed:", e);
+    }
+}
+export const storage = storageInstance;
 export const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {

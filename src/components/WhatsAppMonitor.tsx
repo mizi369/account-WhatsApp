@@ -45,6 +45,7 @@ const WhatsAppMonitor: React.FC = () => {
   // Data States
   const [realContacts, setRealContacts] = useState<Map<string, ChatContact>>(new Map());
   const [chats, setChats] = useState<ChatContact[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [inputMessage, setInputMessage] = useState('');
   const [isAiActive, setIsAiActive] = useState(true); // AI Agent Switch
@@ -101,6 +102,10 @@ const WhatsAppMonitor: React.FC = () => {
         }
     });
 
+    // Load Customers for enrichment
+    const allCustomers = db.getAll<any>(TABLES.CUSTOMERS);
+    setCustomers(allCustomers);
+
     // Load Chat History from DB
     const history = db.getAll<any>(TABLES.CHAT_LOGS);
     if (history && history.length > 0) {
@@ -117,15 +122,18 @@ const WhatsAppMonitor: React.FC = () => {
                     if (parts.length > 1) textContent = parts.slice(1).join(': "').slice(0, -1);
                 }
                 
+                // Enrich with customer data
+                const customer = allCustomers.find(c => c.phone && (c.phone.includes(log.phone) || log.phone.includes(c.phone)));
+                
                 contactsMap.set(log.phone, {
                     id: `user-${log.phone}`,
-                    name: log.name || log.phone,
+                    name: customer?.name || log.name || log.phone,
                     phone: log.phone,
                     lastMsg: textContent,
                     time: log.timestamp || log.time || 'Past',
                     unread: 0,
                     type: 'user',
-                    avatar: 'user'
+                    avatar: customer?.photo_url || 'user'
                 });
             }
         });
@@ -174,17 +182,20 @@ const WhatsAppMonitor: React.FC = () => {
 
     socket.on('new-msg', (msg: any) => {
         if (msg.senderRole === 'user') {
+            const currentCustomers = db.getAll<any>(TABLES.CUSTOMERS);
+            const customer = currentCustomers.find(c => c.phone && (c.phone.includes(msg.phone) || msg.phone.includes(c.phone)));
+            
             setRealContacts(prev => {
                 const newMap = new Map(prev);
                 newMap.set(msg.phone, {
                     id: `user-${msg.phone}`,
-                    name: msg.name || msg.phone,
+                    name: customer?.name || msg.name || msg.phone,
                     phone: msg.phone,
                     lastMsg: msg.body,
                     time: msg.time,
                     unread: (prev.get(msg.phone)?.unread || 0) + 1,
                     type: 'user',
-                    avatar: 'user'
+                    avatar: customer?.photo_url || 'user'
                 });
                 return newMap;
             });
@@ -575,8 +586,8 @@ const WhatsAppMonitor: React.FC = () => {
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                    {chats.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(chat => (
                       <div key={chat.id} onClick={() => setSelectedChat(chat.id)} className={`px-2 md:px-4 py-3 cursor-pointer flex flex-col md:flex-row items-center md:items-start gap-2 md:gap-3 border-b border-white/5 transition-colors ${selectedChat === chat.id ? 'bg-white/10' : 'hover:bg-white/5'}`}>
-                         <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${chat.avatar === 'brain' ? (isConnected ? 'bg-emerald-500' : 'bg-slate-700') : chat.avatar === 'group' ? 'bg-slate-700' : 'bg-slate-800'}`}>
-                            {chat.avatar === 'brain' ? <BrainCircuit size={20} className={isConnected ? "animate-pulse" : ""}/> : chat.avatar === 'group' ? <Users size={20}/> : <User size={20}/>}
+                         <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden ${chat.avatar === 'brain' ? (isConnected ? 'bg-emerald-500' : 'bg-slate-700') : chat.avatar === 'group' ? 'bg-slate-700' : 'bg-slate-800'}`}>
+                            {chat.avatar === 'brain' ? <BrainCircuit size={20} className={isConnected ? "animate-pulse" : ""}/> : chat.avatar === 'group' ? <Users size={20}/> : chat.avatar && chat.avatar !== 'user' ? <img src={chat.avatar} className="w-full h-full object-cover" alt="" /> : <User size={20}/>}
                          </div>
                          <div className="hidden md:block flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-0.5">
@@ -595,8 +606,14 @@ const WhatsAppMonitor: React.FC = () => {
                 <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundSize: '400px' }}></div>
                 <div className="bg-slate-900 px-4 py-2 flex justify-between items-center border-b border-white/5 z-10 h-[60px] shadow-sm">
                    <div className="flex items-center gap-3 cursor-pointer">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white ${selectedChat === 'live-stream' ? 'bg-primary' : 'bg-slate-800 border border-white/10'}`}>
-                         {selectedChat === 'live-stream' ? <BrainCircuit size={18}/> : <Users size={18}/>}
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white overflow-hidden ${selectedChat === 'live-stream' ? 'bg-primary' : 'bg-slate-800 border border-white/10'}`}>
+                         {selectedChat === 'live-stream' ? (
+                           <BrainCircuit size={18}/>
+                         ) : chats.find(c=>c.id===selectedChat)?.avatar && chats.find(c=>c.id===selectedChat)?.avatar !== 'user' ? (
+                           <img src={chats.find(c=>c.id===selectedChat)?.avatar} className="w-full h-full object-cover" alt="" />
+                         ) : (
+                           <Users size={18}/>
+                         )}
                       </div>
                       <div>
                          <h4 className="font-bold text-white text-sm leading-tight">{chats.find(c=>c.id===selectedChat)?.name || 'Chat'}</h4>
