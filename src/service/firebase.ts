@@ -25,7 +25,6 @@ const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 // Initialize Firestore with long-polling for better reliability in proxied/iFrame environments
 export const db = app ? initializeFirestore(app, {
     experimentalForceLongPolling: true,
-    experimentalAutoDetectLongPolling: true,
 }, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || '(default)') : { 
     collection: () => ({}), 
     doc: () => ({}) 
