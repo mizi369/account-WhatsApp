@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db, TABLES } from '../lib/db';
-import { Users, Plus, Search, Edit2, Trash2, X, Phone, MapPin, Calendar } from 'lucide-react';
+import { Users, Plus, Search, Edit2, Trash2, X, Phone, MapPin, Calendar, Camera, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { storage } from '../service/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface Customer {
   id: number;
@@ -21,8 +23,10 @@ export default function Customers({ showToast }: { showToast: (msg: string, type
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    address: ''
+    address: '',
+    photo_url: ''
   });
+  const [uploading, setUploading] = useState(false);
 
   const fetchCustomers = async () => {
     try {
@@ -50,7 +54,7 @@ export default function Customers({ showToast }: { showToast: (msg: string, type
         showToast(editingId ? 'Maklumat pelanggan dikemaskini!' : 'Pelanggan baru ditambah!', 'success');
         setIsModalOpen(false);
         setEditingId(null);
-        setFormData({ name: '', phone: '', address: '' });
+        setFormData({ name: '', phone: '', address: '', photo_url: '' });
         fetchCustomers();
       } else {
         showToast('Gagal menyimpan maklumat: ' + error.message, 'error');
@@ -64,10 +68,30 @@ export default function Customers({ showToast }: { showToast: (msg: string, type
     setFormData({
       name: customer.name,
       phone: customer.phone,
-      address: customer.address || ''
+      address: customer.address || '',
+      photo_url: (customer as any).photo_url || ''
     });
     setEditingId(customer.id);
     setIsModalOpen(true);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const storageRef = ref(storage, `customers/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
+      setFormData(prev => ({ ...prev, photo_url: url }));
+      showToast('Gambar berjaya dimuat naik!', 'success');
+    } catch (error) {
+      console.error('Upload Error:', error);
+      showToast('Gagal memuat naik gambar', 'error');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleDelete = async (id: number | string) => {
@@ -96,7 +120,7 @@ export default function Customers({ showToast }: { showToast: (msg: string, type
         <button 
           onClick={() => {
             setEditingId(null);
-            setFormData({ name: '', phone: '', address: '' });
+            setFormData({ name: '', phone: '', address: '', photo_url: '' });
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all"
@@ -140,9 +164,13 @@ export default function Customers({ showToast }: { showToast: (msg: string, type
                 <tr key={`cust-${customer.id}-${index}`} className="hover:bg-white/[0.02] transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center text-secondary font-bold">
-                        {customer.name.charAt(0).toUpperCase()}
-                      </div>
+                      {(customer as any).photo_url ? (
+                        <img src={(customer as any).photo_url} className="w-8 h-8 rounded-full object-cover border border-white/20" alt="" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center text-secondary font-bold">
+                          {customer.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <p className="font-medium text-sm text-white">{customer.name}</p>
                     </div>
                   </td>
@@ -205,6 +233,33 @@ export default function Customers({ showToast }: { showToast: (msg: string, type
                 </button>
               </div>
               <form onSubmit={handleSave} className="p-6 space-y-4">
+                {/* Photo Upload Section */}
+                <div className="flex flex-col items-center gap-3 mb-4 pb-4 border-b border-white/5">
+                  <div className="relative group">
+                    <div className="w-20 h-20 rounded-full bg-darker border-2 border-dashed border-white/10 flex items-center justify-center overflow-hidden">
+                      {formData.photo_url ? (
+                        <img src={formData.photo_url} className="w-full h-full object-cover" alt="Preview" />
+                      ) : (
+                        <Camera size={24} className="text-slate-600" />
+                      )}
+                      
+                      {uploading && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <Loader2 size={16} className="text-white animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <label className="absolute -bottom-1 -right-1 w-8 h-8 bg-primary rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-all border-2 border-dark">
+                      <Upload size={14} className="text-white" />
+                      <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                    </label>
+                  </div>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest text-center">
+                    {uploading ? 'Sedang memuat naik...' : 'Klik ikon untuk masuk gambar'}
+                  </p>
+                </div>
+
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama Pelanggan</label>
                   <input required type="text" className="w-full bg-darker border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:border-secondary outline-none text-white" placeholder="Nama penuh" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
