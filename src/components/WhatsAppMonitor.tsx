@@ -9,7 +9,7 @@ import {
   Cpu, Server, ScanLine, SmartphoneCharging, ChevronDown, Sparkles, Calendar,
   AlertTriangle, ChevronRight, ChevronLeft
 } from 'lucide-react';
-import { socket } from '../service/socket';
+import { socket, socketBackendMissing } from '../service/socket';
 import { BACKEND_URL } from '../constants';
 import { useNavigate } from 'react-router-dom';
 import { db, TABLES } from '../lib/db';
@@ -83,6 +83,10 @@ const WhatsAppMonitor: React.FC = () => {
     };
 
   useEffect(() => {
+    if (socketBackendMissing) {
+        setStatus('OFFLINE');
+        addLog('Backend Node.js (service.ts) tidak dikonfigurasi. Set VITE_BACKEND_URL untuk hubungkan QR/WhatsApp.');
+    }
     safeFetch('/api/admin', setAdminInfo);
     safeFetch('/api/status', (data) => {
         if(data.status) {
@@ -137,6 +141,21 @@ const WhatsAppMonitor: React.FC = () => {
         socket.emit('cmd-status-check');
     });
 
+    socket.on('connect_error', (err: any) => {
+        setStatus('OFFLINE');
+        const raw = err?.message || '';
+        // socket.io reports "server error" when the handshake response is not the
+        // expected protocol (e.g. an SPA fallback returning index.html). Translate
+        // the unhelpful default into something a user can act on.
+        let friendly = raw || 'cannot reach backend';
+        if (/server error/i.test(raw)) {
+            friendly = isNetlify
+                ? 'Backend tidak dikesan di Netlify. Set VITE_BACKEND_URL ke URL pelayan service.ts (Render/Railway/Fly.io), kemudian build semula.'
+                : 'Pelayan socket tidak menjawab dengan protokol yang betul. Pastikan service.ts berjalan dan VITE_BACKEND_URL betul.';
+        }
+        addLog(`Socket Error: ${friendly}`);
+    });
+
     socket.on('disconnect', () => {
         setStatus('OFFLINE');
         addLog('Socket Disconnected.');
@@ -152,6 +171,12 @@ const WhatsAppMonitor: React.FC = () => {
         setQrCode(qr);
         setStatus('SCAN_QR');
         setActiveTab('connection');
+    });
+
+    socket.on('qr-error', (msg: string) => {
+        setQrCode('');
+        setStatus('OFFLINE');
+        addLog(`QR Error: ${msg}`);
     });
 
     socket.on('bot-log', (msg: string) => {
@@ -213,7 +238,9 @@ const WhatsAppMonitor: React.FC = () => {
     return () => {
         clearTimeout(timer);
         socket.off('stage-update');
-        socket.off('qr-code'); 
+        socket.off('qr-code');
+        socket.off('qr-error');
+        socket.off('connect_error');
         socket.off('bot-log');
         socket.off('sys-log');
         socket.off('neural-log');
@@ -428,7 +455,7 @@ const WhatsAppMonitor: React.FC = () => {
   const isNetlify = window.location.hostname.includes('netlify.app');
 
   const getStatusText = (s: string) => {
-      if (isNetlify && !isConnected) return "Sistem Backend (Node.js) tidak dikesan pada Netlify. Sila gunakan pelayan yang menyokong Node.js (seperti AI Studio Preview atau Render) untuk menjana QR Code.";
+      if (isNetlify && !isConnected) return "Backend Node.js (service.ts) tidak dikesan. Netlify hanya hos statik — sila jalankan service.ts di Render/Railway/Fly.io, kemudian set VITE_BACKEND_URL ke URL backend tersebut sebelum build untuk menjana QR Code.";
       if (s === 'SCAN_QR') return "Sila imbas QR untuk sambung WhatsApp Super Admin. Sistem menunggu pengesahan.";
       if (s === 'READY') return "WhatsApp Super Admin berjaya dihubungkan. Sistem kini aktif dan sedia digunakan.";
       if (s === 'LAUNCHING' || s === 'RECONNECTING' || s === 'AUTHENTICATED') return "Sistem sedang memulakan sambungan Super Admin...";

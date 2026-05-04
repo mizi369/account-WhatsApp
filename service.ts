@@ -840,6 +840,8 @@ function startWhatsApp() {
         io.emit('stage-update', 'SCAN_QR');
     }).catch(err => {
         console.error('[WHATSAPP] QR Generation Error:', err.message);
+        io.emit('qr-error', err.message || 'QR generation failed');
+        io.emit('stage-update', 'OFFLINE');
     });
   });
 
