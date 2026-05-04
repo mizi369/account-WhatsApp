@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer, initializeFirestore } from 'firebase/firestore';
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -19,7 +19,11 @@ if (!isFirebaseConfigured) {
 }
 
 const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
-export const db = app ? getFirestore(app, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || '(default)') : { 
+
+// Initialize Firestore with long-polling for better reliability in proxied/iFrame environments
+export const db = app ? initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+}, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || '(default)') : { 
     collection: () => ({}), 
     doc: () => ({}) 
 } as any;
@@ -74,24 +78,26 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 // Validation connection helper
-export async function testConnection() {
-  if (!isFirebaseConfigured) return; // Skip if not configured
+export async function testConnection(): Promise<boolean> {
+  if (!isFirebaseConfigured) return false; // Skip if not configured
   
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log('[FIREBASE] Connection verified');
+    return true;
   } catch (error) {
     // If it's a permission error, the connection is actually working (just not logged in)
     if (error instanceof Error && (error.message.includes('permission-denied') || error.message.includes('insufficient permissions'))) {
        console.log('[FIREBASE] Connection verified (Auth required)');
-       return;
+       return true;
     }
     
     if(error instanceof Error && error.message.toLowerCase().includes('offline')) {
-      console.error("[FIREBASE] Offline: Please check your internet connection or check if the Firestore project ID is correct.");
+      console.error(`[FIREBASE] Offline: Please check your internet connection or check if the Firestore project ID is correct. (Project ID: ${firebaseConfig.projectId})`);
     } else {
         console.error("[FIREBASE] Connection check error:", error instanceof Error ? error.message : error);
     }
+    return false;
   }
 }
 

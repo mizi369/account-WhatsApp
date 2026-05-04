@@ -144,6 +144,7 @@ const App: React.FC = () => {
   });
   const [sysTime, setSysTime] = useState(new Date().toLocaleTimeString());
   const [isLoading, setIsLoading] = useState(true);
+  const [isFirebaseOnline, setIsFirebaseOnline] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: 'success' | 'error' | 'info' }[]>([]);
 
   const handleLogin = () => {
@@ -277,7 +278,12 @@ const App: React.FC = () => {
         
         try {
             // Test Firebase connection but don't block UI if it takes too long
-            testConnection(); 
+            testConnection().then(online => {
+                setIsFirebaseOnline(online);
+                if (!online && isFirebaseConfigured) {
+                    showToast('Cloud Mode Offline - Check configuration', 'error');
+                }
+            }); 
         } catch (e) {
             console.warn('[SYSTEM] Firebase check skipped/failed');
         }
@@ -520,7 +526,7 @@ const App: React.FC = () => {
   }, []);
 
   const isNetlify = window.location.hostname.includes('netlify.app');
-  const isCloudEnabled = isFirebaseConfigured;
+  const isCloudEnabled = isFirebaseConfigured && isFirebaseOnline;
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
