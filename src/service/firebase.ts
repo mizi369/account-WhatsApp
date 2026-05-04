@@ -12,7 +12,7 @@ const firebaseConfig = {
 };
 
 // Check if Firebase keys are provided to avoid "invalid-api-key" error on startup
-const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
+export const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 
 if (!isFirebaseConfigured) {
   console.warn("[FIREBASE] Firebase API Key is missing. Please set VITE_FIREBASE_API_KEY in Settings > Secrets.");
@@ -61,7 +61,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+      providerInfo: auth.currentUser?.providerData?.map((provider: any) => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []

@@ -58,7 +58,7 @@ import Payroll from './components/Payroll';
 import Sales from './components/Sales';
 import { db, TABLES } from './lib/db';
 import { socket } from './service/socket';
-import { testConnection } from './service/firebase';
+import { testConnection, isFirebaseConfigured } from './service/firebase';
 import { Booking } from './types';
 
 interface SidebarLinkProps {
@@ -670,7 +670,7 @@ const App: React.FC = () => {
                    </div>
                    {waStatus !== 'READY' && waStatus !== 'ONLINE' && waStatus !== 'SCAN_QR' && (
                        <Link to="/whatsapp" className="text-[9px] font-bold text-cyan-400 hover:underline uppercase animate-pulse flex items-center gap-1 hidden sm:flex">
-                           <Activity size={10} /> {isNetlify ? 'Cloud Mode' : 'Reconnect'}
+                           <Activity size={10} /> {isNetlify || isCloudEnabled ? 'Cloud Mode' : 'Reconnect'}
                        </Link>
                    )}
                </div>
@@ -679,7 +679,7 @@ const App: React.FC = () => {
                        <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
                            <WifiOff size={12} className="text-red-500"/>
                            <span className="text-[9px] font-black text-red-500 uppercase tracking-widest hidden xs:inline">
-                               {isNetlify ? 'Cloud Sync' : 'System Offline'}
+                               {isNetlify || isCloudEnabled ? 'Cloud Sync' : 'System Offline'}
                            </span>
                        </div>
                    )}
@@ -691,7 +691,27 @@ const App: React.FC = () => {
 
            <div className={`flex-1 overflow-auto custom-scrollbar p-2 sm:p-4 md:p-5 lg:p-6 ${isSidebarOpen ? 'pl-2 sm:pl-4 md:pl-6' : ''} relative`}>
               <AnimatePresence>
-                {(!isSocketConnected && !isNetlify) && (
+                {(!isSocketConnected && isCloudEnabled) && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-x-0 top-14 z-50 pointer-events-none flex items-start justify-center"
+                  >
+                     <motion.div 
+                       initial={{ opacity: 0, y: -20 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       className="bg-cyan-500/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 border border-cyan-400/50 pointer-events-auto"
+                     >
+                       <Activity size={14} className="animate-pulse" />
+                       <p className="text-[9px] font-black uppercase tracking-widest leading-none">Cloud Mode Aktif</p>
+                       <button onClick={() => window.location.reload()} className="ml-2 hover:bg-white/20 p-1 rounded-full transition-colors">
+                          <RefreshCw size={10} />
+                       </button>
+                     </motion.div>
+                  </motion.div>
+                )}
+                {(!isSocketConnected && !isNetlify && !isCloudEnabled) && (
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}

@@ -14,6 +14,7 @@ import { BACKEND_URL } from '../constants';
 import { useNavigate } from 'react-router-dom';
 import { db, TABLES } from '../lib/db';
 import { ChatMessage } from '../types';
+import { isFirebaseConfigured } from '../service/firebase';
 
 // --- INTERFACES ---
 interface ChatContact {
@@ -229,7 +230,7 @@ const WhatsAppMonitor: React.FC = () => {
             id: 'live-stream', 
             name: 'Live Neural Monitor', 
             phone: 'SYSTEM', 
-            lastMsg: isOnline ? '🟢 System Online & Monitoring...' : '🔴 System Offline', 
+            lastMsg: isOnline ? '🟢 System Online & Monitoring...' : (isFirebaseConfigured ? '🟢 Cloud Mode (Monitoring)' : '🔴 System Offline'), 
             time: 'Now', 
             unread: 0, 
             type: 'broadcast', 
@@ -534,9 +535,9 @@ const WhatsAppMonitor: React.FC = () => {
             )}
 
             <div className="hidden md:flex items-center gap-2 bg-black/10 px-3 py-1 rounded-full">
-               <Activity size={12} className={isConnected ? "text-emerald-300" : (isReconnecting ? "text-yellow-300 animate-pulse" : "text-red-300")}/>
+               <Activity size={12} className={isConnected ? "text-emerald-300" : (isReconnecting ? "text-yellow-300 animate-pulse" : (isFirebaseConfigured ? "text-emerald-300" : "text-red-300"))}/>
                <span className="text-[10px] font-bold uppercase tracking-wider">
-                   {isConnected ? 'ONLINE' : isReconnecting ? 'STARTING...' : status}
+                   {isConnected ? 'ONLINE' : isReconnecting ? 'STARTING...' : (isFirebaseConfigured ? 'CLOUD' : status)}
                </span>
             </div>
             
@@ -598,8 +599,8 @@ const WhatsAppMonitor: React.FC = () => {
                          <h4 className="font-bold text-white text-sm leading-tight">{chats.find(c=>c.id===selectedChat)?.name || 'Chat'}</h4>
                          <p className={`text-[10px] font-medium ${selectedChat === 'live-stream' && isConnected ? 'text-emerald-400 font-bold animate-pulse' : 'text-slate-500'}`}>
                             {selectedChat === 'live-stream' 
-                                ? (isConnected ? '• Online (Neural Active)' : '• System Offline') 
-                                : (isConnected ? '• Online' : '• Offline')}
+                                ? (isConnected ? '• Online (Neural Active)' : (isFirebaseConfigured ? '• Cloud Mode (Active)' : '• System Offline')) 
+                                : (isConnected ? '• Online' : (isFirebaseConfigured ? '• Cloud Mode (Ready)' : '• Offline'))}
                          </p>
                       </div>
                    </div>
@@ -666,7 +667,7 @@ const WhatsAppMonitor: React.FC = () => {
                        )}
                    </div>
                    <div className="flex-1 bg-white rounded-xl px-4 py-2 flex items-center border border-slate-200 shadow-sm">
-                      <input className="w-full bg-transparent outline-none text-sm" placeholder={isConnected ? "Type a message..." : "System Offline..."} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} disabled={!isConnected} />
+                      <input className="w-full bg-transparent outline-none text-sm" placeholder={isConnected ? "Type a message..." : (isFirebaseConfigured ? "Ready (Cloud Feed Active)" : "System Offline...")} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} disabled={!isConnected && !isFirebaseConfigured} />
                    </div>
                    <button onClick={handleSendMessage} className={`p-3 rounded-full shadow-sm transition-all active:scale-90 ${inputMessage.trim() ? 'bg-[#00a884] text-white hover:bg-[#008f6f]' : 'bg-slate-200 text-slate-400'}`}><Send size={18} /></button>
                 </div>
@@ -883,9 +884,9 @@ const WhatsAppMonitor: React.FC = () => {
                               </div>
                           )}
                           
-                          <div className={`mt-6 px-5 py-1.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 ${isConnected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
-                              <Activity size={12} className={isConnected ? "animate-bounce" : ""} />
-                              {status}
+                          <div className={`mt-6 px-5 py-1.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 ${isConnected || isFirebaseConfigured ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                              <Activity size={12} className={isConnected || isFirebaseConfigured ? "animate-bounce" : ""} />
+                              {status === 'OFFLINE' && isFirebaseConfigured ? 'CLOUD' : status}
                           </div>
                       </div>
                   </div>
