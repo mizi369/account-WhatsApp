@@ -280,10 +280,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                             onLogin();
                         }
                     } catch (err: any) {
-                        console.error('Full Sign-In Error Object:', err);
-                        const errorMsg = err.message || 'Ralat tidak diketahui';
-                        const stack = err.stack ? `\nStack: ${err.stack.split('\n')[0]}` : '';
-                        setError('Google Sign-In Gagal: ' + errorMsg + stack);
+                        setError('Google Sign-In Gagal: ' + (err.message || 'Ralat tidak diketahui'));
                     }
                 }}
                 className="w-full bg-slate-50 text-slate-900 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:bg-slate-100 border border-slate-200 transition-all flex items-center justify-center gap-3 active:scale-95"

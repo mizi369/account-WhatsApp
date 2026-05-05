@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS mnf_customers (
     name TEXT NOT NULL,
     phone TEXT UNIQUE NOT NULL,
     address TEXT,
-    photo_url TEXT, -- Gambar Pelanggan
     last_service DATE,
     total_spent NUMERIC DEFAULT 0,
     ad_message TEXT, -- Mesej Iklan Khusus (CRM)

@@ -1,10 +1,15 @@
-import './shim';
+
+// --- CRITICAL BROWSER SHIMS (MUST BE FIRST) ---
+if (typeof (window as any).process === 'undefined') {
+  (window as any).process = { env: {} };
+}
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// Global Error Catcher for easier debugging on external hosts
+// Global Error Catcher for easier debugging on Vercel
 window.addEventListener('error', (event) => {
   console.error('[RUNTIME ERROR]', event.error);
   // Re-display on screen if it's blank

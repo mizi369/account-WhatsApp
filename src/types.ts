@@ -189,7 +189,6 @@ export interface Customer {
   address?: string;
   lastService?: string;
   totalSpent: number;
-  photo_url?: string;
   // New CRM Fields
   adMessage?: string;
   interests?: string[];

@@ -4,18 +4,13 @@ import { createClient } from '@supabase/supabase-js';
 // Safe environment variable retrieval for browser environments
 const getEnv = (key: string, fallback: string = '') => {
   try {
-    // 1. Try Vite's import.meta.env
+    // Check both standard VITE_ prefix and direct access
     const viteKey = `VITE_${key}`;
-    if (import.meta.env[viteKey]) return import.meta.env[viteKey];
-    if (import.meta.env[key]) return import.meta.env[key];
-
-    // 2. Try the defined process.env (Vite will replace these at build time)
-    if (key === 'SUPABASE_URL') return (process.env as any).SUPABASE_URL || 'https://scnbjrkwrgshihgnixvu.supabase.co';
-    if (key === 'SUPABASE_KEY') return (process.env as any).SUPABASE_KEY || fallback;
+    // @ts-ignore
+    const env = import.meta.env || {};
     
-    return fallback;
+    return env[viteKey] || env[key] || (typeof process !== 'undefined' ? process.env[key] : '') || fallback;
   } catch (e) {
-    if (key === 'SUPABASE_URL') return 'https://scnbjrkwrgshihgnixvu.supabase.co';
     return fallback;
   }
 };
@@ -25,11 +20,11 @@ let supabaseKey = '';
 
 try {
   supabaseUrl = localStorage.getItem('mnf_supabase_url') || getEnv('SUPABASE_URL');
-  supabaseKey = localStorage.getItem('mnf_supabase_key') || getEnv('SUPABASE_KEY');
+  supabaseKey = localStorage.getItem('mnf_supabase_key') || getEnv('SUPABASE_ANON_KEY') || getEnv('SUPABASE_KEY');
 } catch (e) {
   console.warn('[SUPABASE] Could not access localStorage or Env variables:', e);
   supabaseUrl = getEnv('SUPABASE_URL');
-  supabaseKey = getEnv('SUPABASE_KEY');
+  supabaseKey = getEnv('SUPABASE_ANON_KEY') || getEnv('SUPABASE_KEY');
 }
 
 let client: any;
@@ -59,10 +54,21 @@ const createMockBuilder = () => {
     };
 };
 
-// Check for valid credentials (ignoring placeholder if present)
-const isValidKey = supabaseKey && !supabaseKey.includes('PASTE_SERVICE_ROLE_KEY');
+// Helper to check if a string is a valid URL
+const isValidUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
+};
 
-if (!supabaseUrl || !isValidKey) {
+// Check for valid credentials (ignoring placeholder if present)
+const isValidKey = supabaseKey && !supabaseKey.includes('PASTE_SERVICE_ROLE_KEY') && supabaseKey.length > 20;
+const hasValidUrl = supabaseUrl && isValidUrl(supabaseUrl);
+
+if (!hasValidUrl || !isValidKey) {
     // Warning suppressed as requested
     // console.warn('[SUPABASE] Running in Offline/Cache Mode. (Missing valid URL or Key)');
     client = {

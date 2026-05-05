@@ -1,53 +1,36 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, initializeFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged as firebaseOnAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+// Use glob for potential config file to prevent build error if missing
+const configs = import.meta.glob('../../firebase-applet-config.json', { eager: true });
+const configKey = '../../firebase-applet-config.json';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
-};
+const firebaseConfig = configs[configKey] 
+    ? (configs[configKey] as any).default 
+    : {
+        apiKey: "",
+        authDomain: "",
+        projectId: "",
+        storageBucket: "",
+        messagingSenderId: "",
+        appId: "",
+        firestoreDatabaseId: ""
+    };
 
-// Check if Firebase keys are provided to avoid "invalid-api-key" error on startup
-export const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
+const hasConfig = firebaseConfig && firebaseConfig.apiKey;
 
-if (!isFirebaseConfigured) {
-  console.warn("[FIREBASE] Firebase API Key is missing. Please set VITE_FIREBASE_API_KEY in Settings > Secrets.");
-}
-
-const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
-
-// Initialize Firestore with long-polling for better reliability in proxied/iFrame environments
-export const db = app ? initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-}, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || '(default)') : { 
-    collection: () => ({}), 
-    doc: () => ({}) 
-} as any;
-
+const app = hasConfig ? initializeApp(firebaseConfig) : null;
+export const db = app ? getFirestore(app) : null as any;
 export const auth = app ? getAuth(app) : { 
-    currentUser: null, 
-    onAuthStateChanged: () => () => {},
-    // Mock internal methods to prevent "Cannot read properties of undefined" errors in firebase SDK
-    _getInternal: () => ({ create: () => ({}) }),
-    create: () => ({})
+    onAuthStateChanged: (cb: any) => { 
+        if (typeof cb === 'function') cb(null); 
+        else if (cb && typeof cb.next === 'function') cb.next(null);
+        return () => {}; 
+    },
+    currentUser: null,
+    signOut: async () => {},
+    config: {}
 } as any;
-
-// Safely initialize storage only if a bucket is provided
-let storageInstance: any = { ref: () => ({}), uploadBytes: () => ({}), getDownloadURL: () => ({}) };
-if (app && firebaseConfig.storageBucket) {
-    try {
-        storageInstance = getStorage(app);
-    } catch (e) {
-        console.error("[FIREBASE] Storage initialization failed:", e);
-    }
-}
-export const storage = storageInstance;
 export const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {
@@ -59,7 +42,7 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-interface FirestoreErrorInfo {
+export interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
@@ -85,7 +68,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map((provider: any) => ({
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []
@@ -97,48 +80,53 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Validation connection helper
-export async function testConnection(): Promise<boolean> {
-  if (!isFirebaseConfigured) return false; // Skip if not configured
-  
+// Validation connection helper as required by instructions
+export async function testConnection() {
+  if (!db) {
+    console.log('[FIREBASE] Skipping connection test (Not configured)');
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log('[FIREBASE] Connection verified');
-    return true;
   } catch (error) {
-    // If it's a permission error, the connection is actually working (just not logged in)
-    if (error instanceof Error && (error.message.includes('permission-denied') || error.message.includes('insufficient permissions'))) {
-       console.log('[FIREBASE] Connection verified (Auth required)');
-       return true;
-    }
-    
-    if(error instanceof Error && error.message.toLowerCase().includes('offline')) {
-      console.error(`[FIREBASE] Offline: Please check your internet connection or check if the Firestore project ID is correct. (Project ID: ${firebaseConfig.projectId})`);
+    if(error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration.");
     } else {
-        console.error("[FIREBASE] Connection check error:", error instanceof Error ? error.message : error);
+        console.warn("[FIREBASE] Connection test result:", error);
     }
-    return false;
   }
 }
 
 export const signInWithGoogle = async () => {
-    if (!isFirebaseConfigured) {
-        throw new Error("Firebase tidak dikonfigurasi. Sila sediakan Firebase terlebih dahulu.");
+    if (!app || !auth.signInWithPopup) {
+        console.warn('[FIREBASE] Google Sign-In not available (Not configured)');
+        // Mock fallback: if it's local dev, maybe skip?
+        // For now, just throw a specific error
+        throw new Error('Firebase not configured. Please add your credentials.');
     }
-
     try {
-        console.log("[FIREBASE] Memulakan Google Sign-In...", { auth: !!auth, googleProvider: !!googleProvider });
         const result = await signInWithPopup(auth, googleProvider);
         return result.user;
-    } catch (error: any) {
-        console.error("Google Sign-In Error Detail:", error);
-        // Special check for common errors
-        if (error.code === 'auth/popup-closed-by-user') {
-            throw new Error("Popup ditutup oleh pengguna.");
-        }
-        if (error.code === 'auth/cancelled-by-user') {
-             throw new Error("Log masuk dibatalkan.");
-        }
+    } catch (error) {
+        console.error('Error signing in with Google:', error);
         throw error;
     }
+};
+
+export const onAuthStateChanged = (authInstance: any, callback: any) => {
+    if (app && authInstance && authInstance.app) {
+        return firebaseOnAuthStateChanged(authInstance, callback);
+    }
+    // Mock behavior
+    if (typeof callback === 'function') callback(null);
+    return () => {};
+};
+
+export const signOut = async (authInstance: any) => {
+    if (app && authInstance && authInstance.app) {
+        return firebaseSignOut(authInstance);
+    }
+    // Mock behavior
+    console.log('[FIREBASE] Mock SignOut');
 };

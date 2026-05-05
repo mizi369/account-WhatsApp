@@ -14,7 +14,6 @@ import { BACKEND_URL } from '../constants';
 import { useNavigate } from 'react-router-dom';
 import { db, TABLES } from '../lib/db';
 import { ChatMessage } from '../types';
-import { isFirebaseConfigured } from '../service/firebase';
 
 // --- INTERFACES ---
 interface ChatContact {
@@ -45,7 +44,6 @@ const WhatsAppMonitor: React.FC = () => {
   // Data States
   const [realContacts, setRealContacts] = useState<Map<string, ChatContact>>(new Map());
   const [chats, setChats] = useState<ChatContact[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [inputMessage, setInputMessage] = useState('');
   const [isAiActive, setIsAiActive] = useState(true); // AI Agent Switch
@@ -89,13 +87,7 @@ const WhatsAppMonitor: React.FC = () => {
         if(data.status) {
             setStatus(data.status);
             // Auto switch to connection tab if scan needed
-            if(data.status === 'SCAN_QR') {
-                setActiveTab('connection');
-                // Fetch QR code if it didn't come through socket yet
-                safeFetch('/api/qr', (qrData) => {
-                    if (qrData.qr) setQrCode(qrData.qr);
-                });
-            }
+            if(data.status === 'SCAN_QR') setActiveTab('connection');
         } else {
             // Default to OFFLINE if no status returned
             setStatus('OFFLINE');
@@ -107,10 +99,6 @@ const WhatsAppMonitor: React.FC = () => {
             setIsAutoConfirmActive(data.isAutoConfirmActive);
         }
     });
-
-    // Load Customers for enrichment
-    const allCustomers = db.getAll<any>(TABLES.CUSTOMERS);
-    setCustomers(allCustomers);
 
     // Load Chat History from DB
     const history = db.getAll<any>(TABLES.CHAT_LOGS);
@@ -128,20 +116,15 @@ const WhatsAppMonitor: React.FC = () => {
                     if (parts.length > 1) textContent = parts.slice(1).join(': "').slice(0, -1);
                 }
                 
-                // Enrich with customer data - Normalize phone numbers for better matching
-                const normalize = (p: string) => p.replace(/\D/g, '').replace(/^60/, '').replace(/^0/, '');
-                const cleanLogPhone = normalize(log.phone);
-                const customer = allCustomers.find(c => c.phone && normalize(c.phone) === cleanLogPhone);
-                
                 contactsMap.set(log.phone, {
                     id: `user-${log.phone}`,
-                    name: customer?.name || log.name || log.phone,
+                    name: log.name || log.phone,
                     phone: log.phone,
                     lastMsg: textContent,
                     time: log.timestamp || log.time || 'Past',
                     unread: 0,
                     type: 'user',
-                    avatar: customer?.photo_url || 'user'
+                    avatar: 'user'
                 });
             }
         });
@@ -190,22 +173,17 @@ const WhatsAppMonitor: React.FC = () => {
 
     socket.on('new-msg', (msg: any) => {
         if (msg.senderRole === 'user') {
-            const currentCustomers = db.getAll<any>(TABLES.CUSTOMERS);
-            const normalize = (p: string) => p.replace(/\D/g, '').replace(/^60/, '').replace(/^0/, '');
-            const cleanMsgPhone = normalize(msg.phone);
-            const customer = currentCustomers.find(c => c.phone && normalize(c.phone) === cleanMsgPhone);
-            
             setRealContacts(prev => {
                 const newMap = new Map(prev);
                 newMap.set(msg.phone, {
                     id: `user-${msg.phone}`,
-                    name: customer?.name || msg.name || msg.phone,
+                    name: msg.name || msg.phone,
                     phone: msg.phone,
                     lastMsg: msg.body,
                     time: msg.time,
                     unread: (prev.get(msg.phone)?.unread || 0) + 1,
                     type: 'user',
-                    avatar: customer?.photo_url || 'user'
+                    avatar: 'user'
                 });
                 return newMap;
             });
@@ -251,7 +229,7 @@ const WhatsAppMonitor: React.FC = () => {
             id: 'live-stream', 
             name: 'Live Neural Monitor', 
             phone: 'SYSTEM', 
-            lastMsg: isOnline ? '🟢 System Online & Monitoring...' : (isFirebaseConfigured ? '🟢 Cloud Mode (Monitoring)' : '🔴 System Offline'), 
+            lastMsg: isOnline ? '🟢 System Online & Monitoring...' : '🔴 System Offline', 
             time: 'Now', 
             unread: 0, 
             type: 'broadcast', 
@@ -451,7 +429,7 @@ const WhatsAppMonitor: React.FC = () => {
       if (s === 'READY') return "WhatsApp Super Admin berjaya dihubungkan. Sistem kini aktif dan sedia digunakan.";
       if (s === 'LAUNCHING' || s === 'RECONNECTING' || s === 'AUTHENTICATED') return "Sistem sedang memulakan sambungan Super Admin...";
       if (s === 'CHECKING...') return "Menyemak status Super Admin...";
-      return (isFirebaseConfigured ? "Sistem berjalan dalam Cloud Mode (Firebase). QR Code hanya boleh dijana melalui Backend Host." : "Sambungan Super Admin terputus. Sila tekan butang 'Connect Super Admin'.");
+      return "Sambungan Super Admin terputus. Sila tekan butang 'Connect Super Admin'.";
   };
 
   const isConnected = status === 'READY';
@@ -556,9 +534,9 @@ const WhatsAppMonitor: React.FC = () => {
             )}
 
             <div className="hidden md:flex items-center gap-2 bg-black/10 px-3 py-1 rounded-full">
-               <Activity size={12} className={isConnected ? "text-emerald-300" : (isReconnecting ? "text-yellow-300 animate-pulse" : (isFirebaseConfigured ? "text-emerald-300" : "text-red-300"))}/>
+               <Activity size={12} className={isConnected ? "text-emerald-300" : (isReconnecting ? "text-yellow-300 animate-pulse" : "text-red-300")}/>
                <span className="text-[10px] font-bold uppercase tracking-wider">
-                   {isConnected ? 'ONLINE' : isReconnecting ? 'STARTING...' : (isFirebaseConfigured ? 'CLOUD' : status)}
+                   {isConnected ? 'ONLINE' : isReconnecting ? 'STARTING...' : status}
                </span>
             </div>
             
@@ -593,8 +571,8 @@ const WhatsAppMonitor: React.FC = () => {
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                    {chats.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(chat => (
                       <div key={chat.id} onClick={() => setSelectedChat(chat.id)} className={`px-2 md:px-4 py-3 cursor-pointer flex flex-col md:flex-row items-center md:items-start gap-2 md:gap-3 border-b border-white/5 transition-colors ${selectedChat === chat.id ? 'bg-white/10' : 'hover:bg-white/5'}`}>
-                         <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden ${chat.avatar === 'brain' ? (isConnected ? 'bg-emerald-500' : 'bg-slate-700') : chat.avatar === 'group' ? 'bg-slate-700' : 'bg-slate-800'}`}>
-                            {chat.avatar === 'brain' ? <BrainCircuit size={20} className={isConnected ? "animate-pulse" : ""}/> : chat.avatar === 'group' ? <Users size={20}/> : chat.avatar && chat.avatar !== 'user' ? <img src={chat.avatar} className="w-full h-full object-cover" alt="" /> : <User size={20}/>}
+                         <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${chat.avatar === 'brain' ? (isConnected ? 'bg-emerald-500' : 'bg-slate-700') : chat.avatar === 'group' ? 'bg-slate-700' : 'bg-slate-800'}`}>
+                            {chat.avatar === 'brain' ? <BrainCircuit size={20} className={isConnected ? "animate-pulse" : ""}/> : chat.avatar === 'group' ? <Users size={20}/> : <User size={20}/>}
                          </div>
                          <div className="hidden md:block flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-0.5">
@@ -613,21 +591,15 @@ const WhatsAppMonitor: React.FC = () => {
                 <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundSize: '400px' }}></div>
                 <div className="bg-slate-900 px-4 py-2 flex justify-between items-center border-b border-white/5 z-10 h-[60px] shadow-sm">
                    <div className="flex items-center gap-3 cursor-pointer">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white overflow-hidden ${selectedChat === 'live-stream' ? 'bg-primary' : 'bg-slate-800 border border-white/10'}`}>
-                         {selectedChat === 'live-stream' ? (
-                           <BrainCircuit size={18}/>
-                         ) : chats.find(c=>c.id===selectedChat)?.avatar && chats.find(c=>c.id===selectedChat)?.avatar !== 'user' ? (
-                           <img src={chats.find(c=>c.id===selectedChat)?.avatar} className="w-full h-full object-cover" alt="" />
-                         ) : (
-                           <Users size={18}/>
-                         )}
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white ${selectedChat === 'live-stream' ? 'bg-primary' : 'bg-slate-800 border border-white/10'}`}>
+                         {selectedChat === 'live-stream' ? <BrainCircuit size={18}/> : <Users size={18}/>}
                       </div>
                       <div>
                          <h4 className="font-bold text-white text-sm leading-tight">{chats.find(c=>c.id===selectedChat)?.name || 'Chat'}</h4>
                          <p className={`text-[10px] font-medium ${selectedChat === 'live-stream' && isConnected ? 'text-emerald-400 font-bold animate-pulse' : 'text-slate-500'}`}>
                             {selectedChat === 'live-stream' 
-                                ? (isConnected ? '• Online (Neural Active)' : (isFirebaseConfigured ? '• Cloud Mode (Active)' : '• System Offline')) 
-                                : (isConnected ? '• Online' : (isFirebaseConfigured ? '• Cloud Mode (Ready)' : '• Offline'))}
+                                ? (isConnected ? '• Online (Neural Active)' : '• System Offline') 
+                                : (isConnected ? '• Online' : '• Offline')}
                          </p>
                       </div>
                    </div>
@@ -694,7 +666,7 @@ const WhatsAppMonitor: React.FC = () => {
                        )}
                    </div>
                    <div className="flex-1 bg-white rounded-xl px-4 py-2 flex items-center border border-slate-200 shadow-sm">
-                      <input className="w-full bg-transparent outline-none text-sm" placeholder={isConnected ? "Type a message..." : (isFirebaseConfigured ? "Ready (Cloud Feed Active)" : "System Offline...")} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} disabled={!isConnected && !isFirebaseConfigured} />
+                      <input className="w-full bg-transparent outline-none text-sm" placeholder={isConnected ? "Type a message..." : "System Offline..."} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} disabled={!isConnected} />
                    </div>
                    <button onClick={handleSendMessage} className={`p-3 rounded-full shadow-sm transition-all active:scale-90 ${inputMessage.trim() ? 'bg-[#00a884] text-white hover:bg-[#008f6f]' : 'bg-slate-200 text-slate-400'}`}><Send size={18} /></button>
                 </div>
@@ -911,9 +883,9 @@ const WhatsAppMonitor: React.FC = () => {
                               </div>
                           )}
                           
-                          <div className={`mt-6 px-5 py-1.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 ${isConnected || isFirebaseConfigured ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
-                              <Activity size={12} className={isConnected || isFirebaseConfigured ? "animate-bounce" : ""} />
-                              {status === 'OFFLINE' && isFirebaseConfigured ? 'CLOUD' : status}
+                          <div className={`mt-6 px-5 py-1.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 ${isConnected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                              <Activity size={12} className={isConnected ? "animate-bounce" : ""} />
+                              {status}
                           </div>
                       </div>
                   </div>

@@ -43,49 +43,45 @@ const __dirname = path.dirname(__filename);
 const envPath = path.resolve(__dirname, '.env');
 
 
-// Hardcoded fallback values (Safety Net)
-const DEFAULT_ENV = {
-    API_KEY: "AIzaSyDEGDKxCcLP2yA-yq9O6P_9_GqTHghRsMA",
-    SUPABASE_URL: "https://scnbjrkwrgshihgnixvu.supabase.co",
-    SUPABASE_KEY: "", 
-    PORT: "3000"
-};
-
-
-// 1. Ensure .env exists with correct structure
-if (!fs.existsSync(envPath)) {
-    console.log('[SYSTEM] .env file missing. Initializing secure configuration...');
-    const content = Object.entries(DEFAULT_ENV).map(([k, v]) => `${k}=${v}`).join('\n');
-    fs.writeFileSync(envPath, content);
+// 1. Skip manual .env writing on Vercel/Production
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(envPath)) {
+    console.log('[SYSTEM] Local .env file missing. Initializing fallback...');
+    // Only write in development
+    const DEFAULT_ENV_CONTENT = `API_KEY=AIzaSyDEGDKxCcLP2yA-yq9O6P_9_GqTHghRsMA\nPORT=3000`;
+    try {
+        fs.writeFileSync(envPath, DEFAULT_ENV_CONTENT);
+    } catch(e) {}
 }
 
 
-// 2. Manual Parse
-try {
-    const rawEnv = fs.readFileSync(envPath, 'utf-8');
-    rawEnv.split(/\r?\n/).forEach(line => {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-            const splitIdx = trimmed.indexOf('=');
-            if (splitIdx > 0) {
-                const key = trimmed.substring(0, splitIdx).trim();
-                const val = trimmed.substring(splitIdx + 1).trim().replace(/^["'](.*)["']$/, '$1');
-                process.env[key] = val;
+// 2. Manual Parse (Still needed for local, but safe for cloud)
+if (fs.existsSync(envPath)) {
+    try {
+        const rawEnv = fs.readFileSync(envPath, 'utf-8');
+        rawEnv.split(/\r?\n/).forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed && !trimmed.startsWith('#')) {
+                const splitIdx = trimmed.indexOf('=');
+                if (splitIdx > 0) {
+                    const key = trimmed.substring(0, splitIdx).trim();
+                    const val = trimmed.substring(splitIdx + 1).trim().replace(/^["'](.*)["']$/, '$1');
+                    if (!process.env[key]) process.env[key] = val;
+                }
             }
-        }
-    });
-} catch (e) { console.error('[SYSTEM] Config Read Error:', e.message); }
+        });
+    } catch (e) { }
+}
 
 
 // 3. Fallback Injection
-if (!process.env.API_KEY) process.env.API_KEY = DEFAULT_ENV.API_KEY;
-if (!process.env.PORT) process.env.PORT = DEFAULT_ENV.PORT;
+if (!process.env.API_KEY) process.env.API_KEY = "AIzaSyDEGDKxCcLP2yA-yq9O6P_9_GqTHghRsMA";
+if (!process.env.PORT) process.env.PORT = "3000";
 
 
 const CONFIG = {
     API_KEY: process.env.API_KEY,
-    SUPABASE_URL: process.env.SUPABASE_URL || DEFAULT_ENV.SUPABASE_URL,
-    SUPABASE_KEY: process.env.SUPABASE_KEY,
+    SUPABASE_URL: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://scnbjrkwrgshihgnixvu.supabase.co",
+    SUPABASE_KEY: process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY,
     PORT: parseInt(process.env.PORT || '3000')
 };
 
@@ -95,14 +91,26 @@ console.log(`[SYSTEM] Key Check: ${CONFIG.API_KEY ? '✅ SECURE' : '❌ MISSING'
 
 
 // ================= SUPABASE CONNECTION =================
+function isValidUrl(url) {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (e) {
+        return false;
+    }
+}
+
 let supabase = null;
-if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY && !CONFIG.SUPABASE_KEY.includes('PASTE_') && CONFIG.SUPABASE_KEY.length > 10) {
+const hasValidUrl = CONFIG.SUPABASE_URL && isValidUrl(CONFIG.SUPABASE_URL);
+const hasValidKey = CONFIG.SUPABASE_KEY && !CONFIG.SUPABASE_KEY.includes('PASTE_') && CONFIG.SUPABASE_KEY.length > 20;
+
+if (hasValidUrl && hasValidKey) {
     try {
         supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
         console.log('[SYSTEM] Supabase Cloud: ✅ CONNECTED');
     } catch (e) { console.error('[SYSTEM] Supabase Init Failed:', e.message); }
 } else {
-    // console.warn('[SYSTEM] Supabase Cloud: ⚠️ OFFLINE (Missing/Invalid Key)');
+    // console.warn('[SYSTEM] Supabase Cloud: ⚠️ OFFLINE (Missing/Invalid Key or URL)');
 }
 
 
@@ -118,7 +126,6 @@ app.use(express.json());
 
 // ================= MEMORY & CONTEXT (LIVE STATE) =================
 let WA_STATUS = 'OFFLINE';
-let LAST_QR = '';
 let client = null;
 let isAutoReplyActive = true; 
 let aiCampaigns = []; 
@@ -221,7 +228,6 @@ async function loadNeuralMemory() {
 
 // ================= API ROUTES =================
 app.get('/api/status', (req, res) => res.json({ status: WA_STATUS }));
-app.get('/api/qr', (req, res) => res.json({ qr: LAST_QR }));
 app.get('/api/context', (req, res) => res.json(activeAiContext));
 app.get('/api/admin', async (req, res) => {
     if (currentAdminInfo && currentAdminInfo.image) return res.json(currentAdminInfo);
@@ -821,6 +827,11 @@ async function fetchAdminProfile() {
 
 
 function startWhatsApp() {
+  if (process.env.VERCEL) {
+      console.log('[WHATSAPP] WhatsApp client is disabled in Vercel environment.');
+      WA_STATUS = 'CLOUD_MODE';
+      return;
+  }
   if (client) return;
   WA_STATUS = 'LAUNCHING';
   io.emit('stage-update', WA_STATUS);
@@ -838,7 +849,6 @@ function startWhatsApp() {
 
   client.on('qr', (qr) => {
     qrcode.toDataURL(qr, { scale: 10 }).then(url => {
-        LAST_QR = url;
         io.emit('qr-code', url);
         io.emit('stage-update', 'SCAN_QR');
     }).catch(err => {
@@ -956,7 +966,6 @@ function startWhatsApp() {
   client.initialize().catch(err => {
       console.error('[WHATSAPP] Init Fatal Error:', err.message);
       WA_STATUS = 'OFFLINE';
-      LAST_QR = '';
       io.emit('stage-update', WA_STATUS);
       client = null;
       setTimeout(startWhatsApp, 10000);
@@ -969,9 +978,6 @@ function startWhatsApp() {
 
 io.on('connection', (socket) => {
     socket.emit('stage-update', WA_STATUS);
-    if (WA_STATUS === 'SCAN_QR' && LAST_QR) {
-        socket.emit('qr-code', LAST_QR);
-    }
     socket.emit('ai-status', isAutoReplyActive);
     socket.emit('dashboard-stats', dashboardStats);
     socket.emit('recent-messages', recentMessages);
@@ -1162,7 +1168,6 @@ io.on('connection', (socket) => {
         if(supabase) await supabase.from('mnf_inventory').upsert({ id: item.id, item_name: item.item_name, stock: item.stock, sell_price: item.sell_price });
     });
 
-
     socket.on('cmd-sync-campaigns', (campaigns) => { aiCampaigns = campaigns; });
 });
 
@@ -1172,8 +1177,12 @@ io.on('connection', (socket) => {
 async function startServer(port) {
 
     console.log('[SYSTEM] Starting server initialization...');
+    
+    // Load persistent memory early
+    await loadNeuralMemory();
+
     // Vite middleware for development
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
         const vite = await createViteServer({
             server: { middlewareMode: true },
             appType: "spa",
@@ -1183,27 +1192,26 @@ async function startServer(port) {
     } else {
         const distPath = path.resolve(__dirname, "dist");
         app.use(express.static(distPath));
-        app.get('*', (req, res) => {
+        app.get(/^(?!\/api).+/, (req, res) => {
             res.sendFile(path.join(distPath, "index.html"));
         });
     }
 
-    server.listen(port, "0.0.0.0", async () => {
+    // Don't call listen on Vercel
+    if (process.env.VERCEL) {
+        console.log('[SYSTEM] Running in Vercel environment');
+        return;
+    }
 
+    server.listen(port, "0.0.0.0", async () => {
         console.log(`🚀 MNF Neural Engine running on port ${port}`);
         
-        // Load persistent memory
-        await loadNeuralMemory();
-
         try {
-            // buka WhatsApp Web sahaja (Commented out for cloud compatibility)
-            // await open("https://web.whatsapp.com");
             console.log("📱 WhatsApp Web bridge active");
         } catch (err) {
             console.error("[SYSTEM] Browser open error:", err.message);
         }
 
-        // auto start WhatsApp jika ada session
         if (fs.existsSync("./.wwebjs_auth")) {
             setTimeout(startWhatsApp, 2000);
         }
@@ -1213,5 +1221,11 @@ async function startServer(port) {
     });
 
 }
+
+// Export for Vercel
+export default app;
+
+if (!process.env.VERCEL) {
+    }
 
 startServer(CONFIG.PORT);
